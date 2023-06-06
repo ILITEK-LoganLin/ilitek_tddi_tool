@@ -33,7 +33,7 @@
 #include <linux/hidraw.h>
 #include <sys/ioctl.h>
 
-#define HID_DAEMON_VERSION "2.0.0.10"
+#define HID_DAEMON_VERSION "2.0.1.0"
 
 #define HID_RAW_NODE "/dev/hidraw0"
 #define RET_FAIL_NO -1
