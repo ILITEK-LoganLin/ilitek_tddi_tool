@@ -121,7 +121,7 @@ void closeReport(void)
 int startMPTest(bool lcm_on)
 {
 	ILI_INFO("startMPTest,run LCM %s\n", lcm_on ? "ON" : "OFF");
-	int ret = MP_TEST_NONE, final_result = 0;
+	int ret = MP_TEST_NONE;
 	char result[100] = {0};
 	int i = 0;
 
@@ -131,7 +131,7 @@ int startMPTest(bool lcm_on)
 	ILI_INFO("MP Test ret = %d\n", ret);
 
 	//init result array
-    for(i = 0; i< ARRAY_SIZE(result);i++)
+    for(i = 0; i< (int) ARRAY_SIZE(result);i++)
     {
         result[i] = MP_ITEM_NA;
     }
@@ -141,7 +141,5 @@ int startMPTest(bool lcm_on)
 
 	ILI_INFO("startMPTest end\n");
 
-
-out:
 	return ret;
 }

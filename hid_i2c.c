@@ -26,7 +26,7 @@ struct ilitek_ts_data ilits;
 struct hidraw_report_descriptor report_desc;
 struct hidraw_devinfo info;
 
-size_t TimeoutRead(int port, void *buf, size_t size, int mlsec_timeout)
+size_t TimeoutRead(int port, u8 *buf, size_t size, int mlsec_timeout)
 {
     struct pollfd fd = {.fd = port, .events = POLLIN};
 
@@ -88,9 +88,9 @@ void init_hid(void)
     ilits.wrapper = ili_i2c_wrapper;
 
     debug_log_en = DISABLE;
-    strcpy(ilits.fw_path, DEF_FW_FILP_PATH);
-    strcpy(ilits.save_path, DEF_MP_LCM_ON_PATH);
-    strcpy(ilits.ini_path, DEF_INI_FILP_PATH);
+    strcpy((char *) ilits.fw_path, DEF_FW_FILP_PATH);
+    strcpy((char *) ilits.save_path, DEF_MP_LCM_ON_PATH);
+    strcpy((char *) ilits.ini_path, DEF_INI_FILP_PATH);
 }
 
 void check_hidraw_info(void)
@@ -121,7 +121,7 @@ void check_hidraw_info(void)
     else
     {
         printf("Report Descriptor:\n");
-        for (i = 0; i < report_desc.size; i++)
+        for (i = 0; i <(int) report_desc.size; i++)
             printf("%hhx ", report_desc.value[i]);
         puts("\n");
     }
@@ -246,9 +246,10 @@ int ili_i2c_wrapper(u8 *txbuf, u32 wlen, u8 *rxbuf, u32 rlen)
             else
             {
                 rxbuf[0] = 0x9; /* Report Number */
-                // rlen = 6000;
-                rlen = 4080;
+                rlen = 6000;
+                // rlen = 4080;
             }
+            ILI_INFO("***********HIDIOCGFEATURE**************\n");
             ret = ioctl(ilits.fd_hidraw, HIDIOCGFEATURE(rlen), rxbuf);
             if (ret < 0) {
                 ILI_ERR("retry HIDIOCGFEATURE\n");
@@ -311,7 +312,7 @@ int ili_ice_mode_read(u32 addr, u32 *data, int len)
     u8 rxbuf[8] = {0};
     u8 txbuf[8] = {0};
 
-    if (len > sizeof(u32))
+    if (len > (int) sizeof(u32))
     {
         ILI_ERR("ice mode read lenght = %d, must less than or equal to 4 bytes\n", len);
         len = 4;

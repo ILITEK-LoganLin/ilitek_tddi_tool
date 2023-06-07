@@ -33,7 +33,7 @@
 #include <linux/hidraw.h>
 #include <sys/ioctl.h>
 
-#define HID_DAEMON_VERSION "2.0.1.0"
+#define HID_DAEMON_VERSION "2.0.2.0"
 
 #define HID_RAW_NODE "/dev/hidraw0"
 #define RET_FAIL_NO -1
@@ -328,7 +328,7 @@ struct ilitek_ts_data
     int flash_sector;
     int fw_update_stat;
     int supportFlashIndex;
-    char* flashName;
+    const char* flashName;
 
     char *md_fw_filp_path;
 
@@ -390,7 +390,7 @@ extern int ilitek_tddi_flash_fw_crc_check(void);
 extern int get_info(void);
 extern void ili_ic_get_pc_counter(void);
 extern int do_fw_upgrade_test(void);
-extern int ili_mp_test(char *ini_path, char *save_path);
+extern int ili_mp_test(u8 *ini_path, u8 *save_path);
 extern void ili_ic_check_protocol_ver(u32 pver);
 extern int ili_ic_get_tp_info(void);
 extern int ili_ic_get_panel_info(void);

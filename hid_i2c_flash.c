@@ -47,7 +47,7 @@ static struct touch_fw_data
 
 static struct flash_block_info
 {
-    char *name;
+    const char *name;
     u32 start;
     u32 end;
     u32 len;
@@ -56,7 +56,7 @@ static struct flash_block_info
     u8 mode;
 } fbi[FW_BLOCK_INFO_NUM];
 
-static u32 HexToDec(u8 *phex, int len)
+static u32 HexToDec(u8 *phex, u32 len)
 {
     u32 ret = 0, temp = 0, i;
     s32 shift = (len - 1) * 4;
@@ -88,7 +88,7 @@ u8 ili_calc_packet_checksum(u8 *packet, int len)
 
 static int CalculateCRC32(u32 start_addr, u32 len, u8 *pfw)
 {
-    int i = 0, j = 0;
+    u32 i = 0, j = 0;
     int crc_poly = 0x04C11DB7;
     int tmp_crc = 0xFFFFFFFF;
 
@@ -149,7 +149,7 @@ static int ilitek_fw_calc_file_crc(u8 *pfw)
 
 int ili_fw_read_hw_crc(u32 start, u32 write_len, u32 *flash_crc)
 {
-    int retry = 100, crc_byte_len = 4;
+    int retry = 100;
     u32 busy = 0;
 
     if (ili_ice_mode_write(FLASH0_CS, 0x0, 1) < 0)
@@ -229,7 +229,7 @@ static int ilitek_tddi_fw_read_flash_data(u32 start, u32 end, u8 *data, int len)
     u32 i, j, index = 0;
     u32 tmp;
 
-    if (end - start > len)
+    if (end - start > (u32) len)
     {
         ILI_ERR("the length (%d) reading crc is over than len(%d)\n", end - start, len);
         return -1;
@@ -383,7 +383,7 @@ void ili_read_flash_info(void)
 	if (ili_ice_mode_write(FLASH2_ADDR, cmd, 1) < 0) /* Read JEDEC ID */
 		ILI_ERR("Write 0x9F failed\n");
 
-	for (i = 0; i < ARRAY_SIZE(buf); i++) {
+	for (i = 0; i < (int) ARRAY_SIZE(buf); i++) {
 		if (ili_ice_mode_write(FLASH2_ADDR, 0xFF, 1) < 0)
 			ILI_ERR("Write dummy failed\n");
 
@@ -410,7 +410,7 @@ void ili_read_flash_info(void)
     ILI_INFO("Flash sector = %d\n", ilits.flash_sector);
 
     flash_id = (ilits.flash_mid << 16) + ilits.flash_devid;
-	for (flashIDIndex = 0; flashIDIndex < ARRAY_SIZE(flash_protect_list); flashIDIndex++) {
+	for (flashIDIndex = 0; flashIDIndex < (int) ARRAY_SIZE(flash_protect_list); flashIDIndex++) {
 		if (flash_id == flash_protect_list[flashIDIndex].flashUID) {
 			ilits.isSupportFlash = true;
 			ilits.supportFlashIndex = flashIDIndex;
@@ -418,7 +418,7 @@ void ili_read_flash_info(void)
 		}
 	}
 
-	if (flashIDIndex >= ARRAY_SIZE(flash_protect_list))
+	if (flashIDIndex >= (int) ARRAY_SIZE(flash_protect_list))
 		ILI_INFO("Not found flash id in table\n");
 	else {
 		if (flash_id == 0xC86013 || flash_id == 0xC84012) { /* special case, need to read flash signature */
@@ -455,7 +455,7 @@ void ili_read_flash_info(void)
 			if (ili_ice_mode_write(FLASH_BASED_ADDR, 0x1, 1) < 0) /* CS High */
 				ILI_ERR("Write cs high failed\n");
 
-			for (flashSignatureIndex = flashIDIndex; flashSignatureIndex < ARRAY_SIZE(flash_protect_list); flashSignatureIndex++) {
+			for (flashSignatureIndex = flashIDIndex; flashSignatureIndex < (int) ARRAY_SIZE(flash_protect_list); flashSignatureIndex++) {
 				if (flash_id == flash_protect_list[flashSignatureIndex].flashUID) {
 					for (i = 0; i < flash_protect_list[flashSignatureIndex].flashSignatureCount; i++) {
 						if (signature == flash_protect_list[flashSignatureIndex].flashSignature[i])
@@ -464,7 +464,7 @@ void ili_read_flash_info(void)
 				}
 			}
 out:
-			if (flashSignatureIndex >= ARRAY_SIZE(flash_protect_list)) {
+			if (flashSignatureIndex >= (int) ARRAY_SIZE(flash_protect_list)) {
 				ilits.isSupportFlash = false;
 				ILI_INFO("Not found flash signature (0x%X) in table\n", signature);
 			} else {
@@ -481,7 +481,6 @@ out:
 
 static void ili_tddi_flash_write_enable(void)
 {
-    u32 readData;
     if (ili_ice_mode_write(FLASH0_CS, 0x0, 1) < 0)
         ILI_ERR("Pull CS low failed\n");
 
@@ -597,7 +596,7 @@ void ilitek_tddi_flash_write(u8 cmd, u8 *sendbuf,int len)
 		ILI_ERR("Write cs high failed\n");
 }
 
-int ilitek_tddi_flash_protect(bool enable, bool mcu)
+int ilitek_tddi_flash_protect(bool enable)
 {
 	int ret = 0, i = 0, w_count = 0, offsetIndex = 0;
 	u32 flash_uid = 0, data = 0, ckreaddata = 0;
@@ -641,7 +640,7 @@ int ilitek_tddi_flash_protect(bool enable, bool mcu)
 			}
 		} else {
 			int check_data_exist = OFF;  // 假設陣列為空
-            for (i = 0; i < sizeof(flash_protect_list[ilits.supportFlashIndex].protect_16K) / sizeof(flash_protect_list[ilits.supportFlashIndex].protect_16K[0]); i++) {
+            for (i = 0; i < (int) (sizeof(flash_protect_list[ilits.supportFlashIndex].protect_16K) / sizeof(flash_protect_list[ilits.supportFlashIndex].protect_16K[0])); i++) {
                 if (flash_protect_list[ilits.supportFlashIndex].protect_16K[i] != 0) {
                     check_data_exist = ON;  // 陣列不為空
                     break;
@@ -737,17 +736,15 @@ int ilitek_tddi_flash_protect(bool enable, bool mcu)
 			ILI_ERR("Write cs high failed\n");
 	}
 out:
-    return 0;
+    return ret;
 }
 
 static int ilitek_tddi_fw_flash_erase(void)
 {
     int ret = 0, retry = TIMEOUT_SECTOR;
-    u32 i = 0, addr = 0, recv_addr = 0;
-
+    u32 i = 0, addr = 0;
     u32 latch, pc;
 
-    bool bk_erase = false;
     for (i = 0; i < FW_BLOCK_INFO_NUM; i++)
     {
         if (fbi[i].end == 0 || i == BOOTLOADER)
@@ -812,16 +809,15 @@ static int ilitek_tddi_fw_flash_erase(void)
         }
     }
     msleep(WAIT_BL_FLASH_DONE_T);
-    return 0;
+    return ret;
 }
 
 static int ilitek_tddi_fw_flash_program(u8 *pfw)
 {
     u8 buf[2100] = {0};
-    u32 i = 0, j = 0, addr = 0, k = 0, recv_addr = 0;
-    int page = ilits.program_page;
+    u32 i = 0, addr = 0, k = 0;
+    u32 page = (u32) ilits.program_page;
     int len, ret = 0;
-    bool skip = true;
 
     // Flash Program Pre CMD
     ilits.wbuf[0] = 0x80;
@@ -997,7 +993,7 @@ static void ilitek_tddi_fw_update_block_info(u8 *pfw)
     ILI_INFO("star_addr = 0x%06X, end_addr = 0x%06X, Block Num = %d\n", tfd.start_addr, tfd.end_addr, tfd.block_number);
 }
 
-static int ilitek_tddi_fw_hex_convert(u8 *phex, int size, u8 *pfw)
+static int ilitek_tddi_fw_hex_convert(u8 *phex, u32 size, u8 *pfw)
 {
     int block = 0;
     u32 i = 0, j = 0, k = 0, num = 0;
@@ -1115,17 +1111,17 @@ static int ilitek_tdd_fw_hex_open(u8 *pfw)
 
     ipio_free((void **)&(ilits.tp_fw.data));
     ilits.tp_fw.size = fsize;
-    ilits.tp_fw.data = malloc(fsize);
+    ilits.tp_fw.data = (u8 *) malloc(fsize);
     if (!ilits.tp_fw.data)
     {
         ret = -EFAULT;
         goto out;
     }
 
-    read(f, (void *)ilits.tp_fw.data, fsize);
+    (void) read(f, (void *)ilits.tp_fw.data, fsize);
 
     /* Convert hex and copy data from tp_fw.data to pfw */
-    if (ilitek_tddi_fw_hex_convert((u8 *)ilits.tp_fw.data, ilits.tp_fw.size, pfw) < 0)
+    if (ilitek_tddi_fw_hex_convert((u8 *)ilits.tp_fw.data, (u32) ilits.tp_fw.size, pfw) < 0)
     {
         ILI_ERR("Convert hex file failed\n");
         ret = -1;
@@ -1144,7 +1140,7 @@ int open_hex(char *file_path)
 {
     int i;
     ipio_free((void **)&pfw);
-    pfw = malloc(MAX_HEX_FILE_SIZE * sizeof(u8));
+    pfw = (u8 *) malloc(MAX_HEX_FILE_SIZE * sizeof(u8));
 
     if (!pfw)
     {
@@ -1186,8 +1182,8 @@ out:
 
 int do_fw_upgrade(void)
 {
-    u8 cmdbuf[64] = {0};
-    u32 readData, write_len;
+    // u8 cmdbuf[64] = {0};
+    // u32 readData, write_len;
     int ret = UPDATE_PASS;
 
     ili_ic_disable_report();
@@ -1198,7 +1194,7 @@ int do_fw_upgrade(void)
         return UPDATE_FAIL;
     }
 
-    if (ilitek_tddi_flash_protect(DISABLE, OFF) < 0)
+    if (ilitek_tddi_flash_protect(DISABLE) < 0)
     {
         ILI_ERR("flash protect fail.\n");
         goto out;
@@ -1221,7 +1217,7 @@ int do_fw_upgrade(void)
     ret = ilitek_tddi_flash_fw_crc_check();
 
 out:
-    ilitek_tddi_flash_protect(ENABLE, OFF);
+    ilitek_tddi_flash_protect(ENABLE);
     ili_ic_whole_reset(ON);
     ili_ic_get_protocl_ver();
     ili_ic_get_core_ver();
@@ -1232,8 +1228,7 @@ out:
 
 int do_fw_upgrade_test(void)
 {
-    u8 cmdbuf[64] = {0};
-    u32 readData, write_len;
+    // u8 cmdbuf[64] = {0};
     int ret = UPDATE_PASS;
 
     ili_ic_disable_report();
@@ -1245,7 +1240,7 @@ int do_fw_upgrade_test(void)
         return RET_FAIL_NO;
     }
 
-    ilitek_tddi_flash_protect(DISABLE, OFF);
+    ilitek_tddi_flash_protect(DISABLE);
 
     // ret = ilitek_tddi_fw_flash_erase();
     // if (ret < 0)
@@ -1264,8 +1259,7 @@ int do_fw_upgrade_test(void)
     // // ILI_INFO("check BL mode = %d\n", is_in_bootloader_mode());
     // ret = ilitek_tddi_flash_fw_crc_check();
 
-out:
-    ilitek_tddi_flash_protect(ENABLE, OFF);
+    ilitek_tddi_flash_protect(ENABLE);
     ili_ic_whole_reset(ON);
     // ili_ic_get_protocl_ver();
     // ili_ic_get_core_ver();

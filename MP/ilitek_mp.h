@@ -177,19 +177,6 @@ struct ilitek_protocol_info {
 	int window_len;
 	int cdc_len;
 	int mp_info_len;
-
-	/* TP information */
-	u8 cmd_read_ctrl;
-	u8 cmd_get_tp_info;
-	u8 cmd_get_key_info;
-	u8 cmd_get_panel_info;
-	u8 cmd_get_fw_ver;
-	u8 cmd_get_pro_ver;
-	u8 cmd_get_core_ver;
-	u8 cmd_mode_ctrl;
-	u8 cmd_i2cuart;
-	u8 cmd_cdc_busy;
-	u8 cmd_get_mp_info;
 };
 
 struct ilitek_tp_info{
@@ -334,7 +321,7 @@ extern void ili_mp_test_free(void);
 extern int ili_mp_ini_parser(const char *path);
 extern void ili_mp_copy_result(char *buf, size_t size);
 extern void show_vivo_mp_result(int mpret);
-extern void show_commom_mp_result(int mpret);
+extern void show_commom_mp_result(void);
 extern int ili_ic_check_busy(int count, int delay);
 extern int ili_hid_switch_tp_mode(u8 mode);
 

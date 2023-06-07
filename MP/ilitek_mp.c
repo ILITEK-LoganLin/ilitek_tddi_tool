@@ -236,11 +236,11 @@ static struct core_mp_test_data {
 	bool ctrl_lcm;
 	bool lost_benchmark;
 	bool lost_parameter;
-} core_mp = {0};
+} core_mp;
 
 struct mp_test_items {
 	/* The description must be the same as ini's section name */
-	char *desp;
+	const char *desp;
 	char *result;
 	int catalog;
 	u8 cmd;
@@ -403,7 +403,7 @@ static void dump_node_type_buffer(s32 *node_ptr, char *name)
 	char dump_log[R_BUFF_SIZE] = {0};
 
 	if (debug_log_en) {
-		ILI_INFO("Dump NodeType\n");
+		ILI_INFO("Dump NodeType, %s\n", name);
 		for (i = 0; i < core_mp.frame_len; i++) {
 			sprintf(dump_log, "%s%d, ",dump_log, node_ptr[i]);
 
@@ -416,7 +416,7 @@ static void dump_node_type_buffer(s32 *node_ptr, char *name)
 	}
 }
 
-static int parser_get_ini_key_value(char *section, char *key, char *value)
+static int parser_get_ini_key_value(const char *section, const char *key, char *value)
 {
 	int i = 0;
 	int ret = -2;
@@ -446,7 +446,7 @@ static void parser_ini_nodetype(s32 *type_ptr, char *desp, int frame_len)
 
 	for (i = 0; i < g_ini_items; i++) {
 		if (!strstr(ini_info[i].section_name, desp) ||
-			ipio_strcmp(ini_info[i].key_name, NODE_TYPE_KEY_NAME) != 0) {
+			ipio_strcmp(ini_info[i].key_name, (const char *) NODE_TYPE_KEY_NAME) != 0) {
 			continue;
 		}
 
@@ -473,7 +473,7 @@ static void parser_ini_nodetype(s32 *type_ptr, char *desp, int frame_len)
 	}
 }
 
-static void parser_ini_benchmark(s32 *max_ptr, s32 *min_ptr, int8_t type, char *desp, int frame_len, char *bchmrk_name)
+static void parser_ini_benchmark(s32 *max_ptr, s32 *min_ptr, u8 type, const char *desp, int frame_len, const char *bchmrk_name)
 {
 	int i = 0, j = 0, index1 = 0, temp, count = 0;
 	char str[512] = {0}, record = ',';
@@ -564,8 +564,7 @@ static int parser_get_u8_array(char *key, u8 *buf, u16 base, int len)
 {
 	char *s = key;
 	char *pToken;
-	int ret, conut = 0;
-	long s_to_long = 0;
+	int conut = 0;
 
 	if (strlen(s) == 0 || len <= 0) {
 		ILI_ERR("Can't find any characters inside buffer\n");
@@ -597,7 +596,7 @@ static int parser_get_u8_array(char *key, u8 *buf, u16 base, int len)
 	return conut;
 }
 
-static int parser_get_int_data(char *section, char *keyname, char *rv, int rv_len)
+static int parser_get_int_data(const char *section, const char *keyname, char *rv, int rv_len)
 {
 	int len = 0;
 	char value[512] = { 0 };
@@ -645,22 +644,22 @@ static int parser_get_ini_phy_line(char *data, char *buffer, int maxlen)
 	return iRetNum;
 }
 
-static char *parser_ini_str_trim_r(char *buf)
+static const char *parser_ini_str_trim_r(char *buf)
 {
 	int len, i;
 	char *tmp = NULL;
 	char x[512] = {0};
 	char *y = NULL;
-	char *empty = "";
+	const char *empty = "";
 
 	len = strlen(buf);
 
-	if (len < sizeof(x)) {
+	if (len < (int) sizeof(x)) {
 		tmp = x;
 		goto copy;
 	}
 
-	y = malloc(len);
+	y = (char *) malloc(len);
 	if (ERR_ALLOC_MEM(y)) {
 		ILI_ERR("Failed to allocate tmp buf\n");
 		return empty;
@@ -698,14 +697,14 @@ static int parser_get_ini_phy_data(char *data, int fsize)
 		goto out;
 	}
 
-	ini_buf = malloc((PARSER_MAX_CFG_BUF + 1) * sizeof(char));
+	ini_buf = (char *) malloc((PARSER_MAX_CFG_BUF + 1) * sizeof(char));
 	if (ERR_ALLOC_MEM(ini_buf)) {
 		ILI_ERR("Failed to allocate ini_buf memory\n");
 		ret = -ENOMEM;
 		goto out;
 	}
 
-	tmpSectionName = malloc((PARSER_MAX_CFG_BUF + 1) * sizeof(char));
+	tmpSectionName = (char *) malloc((PARSER_MAX_CFG_BUF + 1) * sizeof(char));
 	if (ERR_ALLOC_MEM(tmpSectionName)) {
 		ILI_ERR("Failed to allocate tmpSectionName memory\n");
 		ret = -ENOMEM;
@@ -868,14 +867,14 @@ int ili_mp_ini_parser(const char *path)
 		goto out;
 	}
 
-	tmp = vmalloc(fsize+1);
+	tmp = (char *) vmalloc(fsize+1);
 	if (ERR_ALLOC_MEM(tmp)) {
 		ILI_ERR("Failed to allocate tmp memory\n");
 		ret = -ENOMEM;
 		goto out;
 	}
 
-	fread(tmp, 1, fsize, f);
+	(void) fread(tmp, 1, fsize, f);
 	tmp[fsize] = 0x00;
 
 	g_ini_items = 0;
@@ -915,7 +914,7 @@ out:
 	return ret;
 }
 
-static int parser_ini_precmd(char *desp, u8 *buf)
+static int parser_ini_precmd(const char *desp, u8 *buf)
 {
 
 	int i = 0, cmdlen = 0;
@@ -937,7 +936,7 @@ static int parser_ini_precmd(char *desp, u8 *buf)
 
 		buf[0] = CMD_FW_MP_PRE_SET_CMD;
 		buf[1] = cmdnum;
-		strncpy(buf + 2 + ((cmdnum - 1) * 11), cmd, 11);
+		strncpy((char *) (buf + 2 + ((cmdnum - 1) * 11)), (char *) cmd, 11);
 
 	}
 	cmdlen = 2 + cmdnum * 11;
@@ -945,7 +944,7 @@ static int parser_ini_precmd(char *desp, u8 *buf)
 	return cmdlen;
 }
 
-static int precommd(u8 *cmd, int cmdlen, u8 *precmd, int precmdlen, u8 *rdata, u32 rlen, bool spi_irq, bool i2c_irq)
+static int precommd(u8 *cmd, int cmdlen, u8 *precmd, int precmdlen, u8 *rdata, u32 rlen)
 {
 	u8 buf[2] = {0};
 
@@ -1099,7 +1098,7 @@ static int run_open_test(int index)
 	return ret;
 }
 
-static void run_tx_rx_delta_test(int index)
+static void run_tx_rx_delta_test(void)
 {
 	int x, y;
 	s32 *p_comb = frame_buf;
@@ -1119,21 +1118,21 @@ static void run_tx_rx_delta_test(int index)
 	}
 }
 
-static char *get_date_time_str(void)
-{
-	time_t timer;
-	struct tm* tm_info;
-	static char time_data_buf[128] = { 0 };
+// static char *get_date_time_str(void)
+// {
+// 	time_t timer;
+// 	struct tm* tm_info;
+// 	static char time_data_buf[128] = { 0 };
 
-	time(&timer);
-	tm_info = localtime(&timer);
-	snprintf(time_data_buf, sizeof(time_data_buf), "%04d%02d%02d-%02d%02d%02d",
-		(tm_info->tm_year + 1900), tm_info->tm_mon + 1,
-		tm_info->tm_mday, tm_info->tm_hour, tm_info->tm_min,
-		tm_info->tm_sec);
+// 	time(&timer);
+// 	tm_info = localtime(&timer);
+// 	snprintf(time_data_buf, sizeof(time_data_buf), "%04d%02d%02d-%02d%02d%02d",
+// 		(tm_info->tm_year + 1900), tm_info->tm_mon + 1,
+// 		tm_info->tm_mday, tm_info->tm_hour, tm_info->tm_min,
+// 		tm_info->tm_sec);
 
-	return time_data_buf;
-}
+// 	return time_data_buf;
+// }
 
 static void mp_print_csv_header(char *csv, int *csv_len, int *csv_line, int file_size)
 {
@@ -1202,10 +1201,10 @@ static void mp_print_csv_cdc_cmd(char *csv, int *csv_len, int index, int file_si
 {
 	int i, slen = 0, tmp_len = *csv_len, size;
 	char str[128] = {0};
-	char *open_sp_cmd[] = {"open dac", "open raw1", "open raw2", "open raw3"};
-	char *open_c_cmd[] = {"open cap1 dac", "open cap1 raw"};
-	char *open_x_cmd[] = {"open_x cap1 dac", "open_x cap1 raw"};
-	char *name = tItems[index].desp;
+	const char *open_sp_cmd[] = {"open dac", "open raw1", "open raw2", "open raw3"};
+	const char *open_c_cmd[] = {"open cap1 dac", "open cap1 raw"};
+	const char *open_x_cmd[] = {"open_x cap1 dac", "open_x cap1 raw"};
+	const char *name = tItems[index].desp;
 
 	if (ipio_strcmp(name, "open test(integration)_sp") == 0) {
 		size = ARRAY_SIZE(open_sp_cmd);
@@ -1498,7 +1497,7 @@ static s32 open_c_formula(int inCap1DAC, int inCap1Raw, int accuracy)
 static void allnode_open_cdc_result(int index, int *buf, int *dac, int *raw)
 {
 	int i;
-	char *desp = tItems[index].desp;
+	const char *desp = tItems[index].desp;
 	char str[32] = {0};
 	int accuracy = 0;
 
@@ -1667,7 +1666,7 @@ static int allnode_key_cdc_data(int index)
 	cmd[2] = 0;
 
 	/* Allocate a buffer for the original */
-	ori = kcalloc(len, sizeof(u8), GFP_KERNEL);
+	ori = (u8 *) kcalloc(len, sizeof(u8), GFP_KERNEL);
 	if (ERR_ALLOC_MEM(ori)) {
 		ILI_ERR("Failed to allocate ori mem\n");
 		ret = -1;
@@ -1683,7 +1682,7 @@ static int allnode_key_cdc_data(int index)
 	ili_dump_data(ori, 8, len, 32, "Key CDC original");
 
 	if (key_buf == NULL) {
-		key_buf = kcalloc(core_mp.key_len, sizeof(s32), GFP_KERNEL);
+		key_buf = (s32 *) kcalloc(core_mp.key_len, sizeof(s32), GFP_KERNEL);
 		if (ERR_ALLOC_MEM(key_buf)) {
 			ILI_ERR("Failed to allocate FrameBuffer mem\n");
 			goto out;
@@ -1725,7 +1724,7 @@ static int mp_cdc_get_pv5_4_command(u8 *cmd, int len, int index)
 {
 	int slen = 0;
 	char str[128] = {0};
-	char *key = tItems[index].desp;
+	const char *key = tItems[index].desp;
 
 	if (core_mp.td_retry && (ipio_strcmp(key, "peak to peak_td (lcm off)") == 0))
 		key = "peak to peak_td (lcm off)_2";
@@ -1785,7 +1784,7 @@ static int allnode_open_cdc_data(int mode, int *buf, int index)
 	u8 precmd[256] = {0};
 	u8 *ori = NULL;
 	char str[128] = {0};
-	char *key[] = {"open dac", "open raw1", "open raw2", "open raw3",
+	const char *key[] = {"open dac", "open raw1", "open raw2", "open raw3",
 			"open cap1 dac", "open cap1 raw", "open_x cap1 dac", "open_x cap1 raw"};
 
 	/* Multipling by 2 is due to the 16 bit in each node */
@@ -1823,7 +1822,7 @@ static int allnode_open_cdc_data(int mode, int *buf, int index)
 	ili_dump_data(cmd, 8, sizeof(cmd), 32, "Open SP command");
 
 	/* Allocate a buffer for the original */
-	ori = kcalloc(len, sizeof(u8), GFP_KERNEL);
+	ori = (u8 *) kcalloc(len, sizeof(u8), GFP_KERNEL);
 	if (ERR_ALLOC_MEM(ori)) {
 		ILI_ERR("Failed to allocate ori\n");
 		ret = -EMP_NOMEM;
@@ -1832,7 +1831,7 @@ static int allnode_open_cdc_data(int mode, int *buf, int index)
 
 	/* Get original frame(cdc) data */
     if (tItems[index].pre_cmd_en) {
-		if (precommd(cmd, core_mp.cdc_len, precmd, precmd_len, ori, len, ON, ON) < 0)
+		if (precommd(cmd, core_mp.cdc_len, precmd, precmd_len, ori, len) < 0)
 			goto out;
 	} else {
 	    if (ilits.wrapper(cmd, core_mp.cdc_len, ilits.rbuf, len) < 0) {
@@ -1903,7 +1902,7 @@ static int allnode_peak_to_peak_cdc_data(int index)
 	memset(cmd, 0xFF, sizeof(cmd));
 
 	/* Allocate a buffer for the original */
-	ori = kcalloc(len, sizeof(u8), GFP_KERNEL);
+	ori = (u8 *) kcalloc(len, sizeof(u8), GFP_KERNEL);
 	if (ERR_ALLOC_MEM(ori)) {
 		ILI_ERR("Failed to allocate ori\n");
 		ret = -EMP_NOMEM;
@@ -1960,7 +1959,7 @@ static int allnode_peak_to_peak_cdc_data(int index)
 		memset(ori, 0, len);
 		/* Get original frame(cdc) data */
         if (tItems[index].pre_cmd_en) {
-    		if (precommd(cmd, core_mp.cdc_len, precmd, precmd_len, ori, len, ON, ON) < 0)
+    		if (precommd(cmd, core_mp.cdc_len, precmd, precmd_len, ori, len) < 0)
     			goto out;
     	} else {
     	    if (ilits.wrapper(cmd, sizeof(cmd), ilits.rbuf, len) < 0) {
@@ -2045,7 +2044,7 @@ static int allnode_mutual_cdc_data(int index)
 	ili_dump_data(cmd, 8, core_mp.cdc_len, 32, "Mutual CDC command");
 
 	/* Allocate a buffer for the original */
-	ori = kcalloc(len, sizeof(u8), GFP_KERNEL);
+	ori = (u8 *) kcalloc(len, sizeof(u8), GFP_KERNEL);
 	if (ERR_ALLOC_MEM(ori)) {
 		ILI_ERR("Failed to allocate ori\n");
 		ret = -EMP_NOMEM;
@@ -2055,7 +2054,7 @@ static int allnode_mutual_cdc_data(int index)
 	/* Get original frame(cdc) data */
 
     if (tItems[index].pre_cmd_en) {
-		if (precommd(cmd, core_mp.cdc_len, precmd, precmd_len, ori, len, ON, ON) < 0)
+		if (precommd(cmd, core_mp.cdc_len, precmd, precmd_len, ori, len) < 0)
 			goto out;
 	} else {
 		if (ilits.wrapper(cmd, core_mp.cdc_len, ilits.rbuf, len) < 0) {
@@ -2069,7 +2068,7 @@ static int allnode_mutual_cdc_data(int index)
 	ili_dump_data(ori, 8, len, 32, "Mutual CDC original");
 
 	if (frame_buf == NULL) {
-		frame_buf = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+		frame_buf = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 		if (ERR_ALLOC_MEM(frame_buf)) {
 			ILI_ERR("Failed to allocate FrameBuffer mem\n");
 			ret = -EMP_NOMEM;
@@ -2167,7 +2166,7 @@ static int create_mp_test_frame_buffer(int index, int frame_count)
 
 	if (tItems[index].catalog == TX_RX_DELTA) {
 		if (core_mp.tx_delta_buf == NULL) {
-			core_mp.tx_delta_buf = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+			core_mp.tx_delta_buf = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 			if (ERR_ALLOC_MEM(core_mp.tx_delta_buf)) {
 				ILI_ERR("Failed to allocate tx_delta_buf mem\n");
 				ipio_kfree((void **)&core_mp.tx_delta_buf);
@@ -2176,7 +2175,7 @@ static int create_mp_test_frame_buffer(int index, int frame_count)
 		}
 
 		if (core_mp.rx_delta_buf == NULL) {
-			core_mp.rx_delta_buf = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+			core_mp.rx_delta_buf = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 			if (ERR_ALLOC_MEM(core_mp.rx_delta_buf)) {
 				ILI_ERR("Failed to allocate rx_delta_buf mem\n");
 				ipio_kfree((void **)&core_mp.rx_delta_buf);
@@ -2185,7 +2184,7 @@ static int create_mp_test_frame_buffer(int index, int frame_count)
 		}
 
 		if (core_mp.tx_max_buf == NULL) {
-			core_mp.tx_max_buf = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+			core_mp.tx_max_buf = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 			if (ERR_ALLOC_MEM(core_mp.tx_max_buf)) {
 				ILI_ERR("Failed to allocate tx_max_buf mem\n");
 				ipio_kfree((void **)&core_mp.tx_max_buf);
@@ -2194,7 +2193,7 @@ static int create_mp_test_frame_buffer(int index, int frame_count)
 		}
 
 		if (core_mp.tx_min_buf == NULL) {
-			core_mp.tx_min_buf = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+			core_mp.tx_min_buf = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 			if (ERR_ALLOC_MEM(core_mp.tx_min_buf)) {
 				ILI_ERR("Failed to allocate tx_min_buf mem\n");
 				ipio_kfree((void **)&core_mp.tx_min_buf);
@@ -2203,7 +2202,7 @@ static int create_mp_test_frame_buffer(int index, int frame_count)
 		}
 
 		if (core_mp.rx_max_buf == NULL) {
-			core_mp.rx_max_buf = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+			core_mp.rx_max_buf = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 			if (ERR_ALLOC_MEM(core_mp.rx_max_buf)) {
 				ILI_ERR("Failed to allocate rx_max_buf mem\n");
 				ipio_kfree((void **)&core_mp.rx_max_buf);
@@ -2212,7 +2211,7 @@ static int create_mp_test_frame_buffer(int index, int frame_count)
 		}
 
 		if (core_mp.rx_min_buf == NULL) {
-			core_mp.rx_min_buf = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+			core_mp.rx_min_buf = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 			if (ERR_ALLOC_MEM(core_mp.rx_min_buf)) {
 				ILI_ERR("Failed to allocate rx_min_buf mem\n");
 				ipio_kfree((void **)&core_mp.rx_min_buf);
@@ -2221,7 +2220,7 @@ static int create_mp_test_frame_buffer(int index, int frame_count)
 		}
 	} else {
 		if (tItems[index].buf == NULL) {
-			tItems[index].buf = vmalloc(frame_count * core_mp.frame_len * sizeof(s32));
+			tItems[index].buf = (s32 *)vmalloc(frame_count * core_mp.frame_len * sizeof(s32));
 			if (ERR_ALLOC_MEM(tItems[index].buf)) {
 				ILI_ERR("Failed to allocate buf mem\n");
 				ipio_kfree((void **)&tItems[index].buf);
@@ -2230,7 +2229,7 @@ static int create_mp_test_frame_buffer(int index, int frame_count)
 		}
 
 		if (tItems[index].result_buf == NULL) {
-			tItems[index].result_buf = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+			tItems[index].result_buf = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 			if (ERR_ALLOC_MEM(tItems[index].result_buf)) {
 				ILI_ERR("Failed to allocate result_buf mem\n");
 				ipio_kfree((void **)&tItems[index].result_buf);
@@ -2239,7 +2238,7 @@ static int create_mp_test_frame_buffer(int index, int frame_count)
 		}
 
 		if (tItems[index].max_buf == NULL) {
-			tItems[index].max_buf = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+			tItems[index].max_buf = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 			if (ERR_ALLOC_MEM(tItems[index].max_buf)) {
 				ILI_ERR("Failed to allocate max_buf mem\n");
 				ipio_kfree((void **)&tItems[index].max_buf);
@@ -2248,7 +2247,7 @@ static int create_mp_test_frame_buffer(int index, int frame_count)
 		}
 
 		if (tItems[index].min_buf == NULL) {
-			tItems[index].min_buf = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+			tItems[index].min_buf = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 			if (ERR_ALLOC_MEM(tItems[index].min_buf)) {
 				ILI_ERR("Failed to allocate min_buf mem\n");
 				ipio_kfree((void **)&tItems[index].min_buf);
@@ -2258,7 +2257,7 @@ static int create_mp_test_frame_buffer(int index, int frame_count)
 
 		if (tItems[index].spec_option == BENCHMARK) {
 			if (tItems[index].bch_mrk_max == NULL) {
-				tItems[index].bch_mrk_max = (s32 **)malloc(tItems[index].bch_mrk_frm_num * sizeof(s32 *));
+				tItems[index].bch_mrk_max = (s32 **) malloc(tItems[index].bch_mrk_frm_num * sizeof(s32 *));
 				if (ERR_ALLOC_MEM(tItems[index].bch_mrk_max)) {
 					ILI_ERR("Failed to allocate bch_mrk_max mem\n");
 					ipio_kfree((void **)&tItems[index].bch_mrk_max);
@@ -2266,7 +2265,7 @@ static int create_mp_test_frame_buffer(int index, int frame_count)
 				}
 
 				for (i = 0; i < tItems[index].bch_mrk_frm_num; i++) {
-					tItems[index].bch_mrk_max[i] = (s32 *)malloc(core_mp.frame_len * sizeof(s32));
+					tItems[index].bch_mrk_max[i] = (s32 *) malloc(core_mp.frame_len * sizeof(s32));
 					if (ERR_ALLOC_MEM(tItems[index].bch_mrk_max[i])) {
 						ILI_ERR("Failed to allocate bch_mrk_max[%d] mem\n", i);
 						ipio_kfree((void **)&tItems[index].bch_mrk_max[i]);
@@ -2293,7 +2292,7 @@ static int create_mp_test_frame_buffer(int index, int frame_count)
 			}
 
 			if (tItems[index].bench_mark_max == NULL) {
-				tItems[index].bench_mark_max = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+				tItems[index].bench_mark_max = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 				if (ERR_ALLOC_MEM(tItems[index].bench_mark_max)) {
 					ILI_ERR("Failed to allocate bench_mark_max mem\n");
 					ipio_kfree((void **)&tItems[index].bench_mark_max);
@@ -2301,7 +2300,7 @@ static int create_mp_test_frame_buffer(int index, int frame_count)
 				}
 			}
 			if (tItems[index].bench_mark_min == NULL) {
-				tItems[index].bench_mark_min = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+				tItems[index].bench_mark_min = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 				if (ERR_ALLOC_MEM(tItems[index].bench_mark_min)) {
 					ILI_ERR("Failed to allocate bench_mark_min mem\n");
 					ipio_kfree((void **)&tItems[index].bench_mark_min);
@@ -2376,7 +2375,7 @@ static int mutual_test(int index)
 			run_open_test(index);
 			break;
 		case TX_RX_DELTA:
-			run_tx_rx_delta_test(index);
+			run_tx_rx_delta_test();
 			break;
 		case SHORT_TEST:
 			ret = short_test(index, i);
@@ -2473,7 +2472,7 @@ static int open_test_sp(int index)
 	}
 
 	if (frame1_cbk700 == NULL) {
-		frame1_cbk700 = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+		frame1_cbk700 = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 		if (ERR_ALLOC_MEM(frame1_cbk700)) {
 			ILI_ERR("Failed to allocate frame1_cbk700 buffer\n");
 			return -EMP_NOMEM;
@@ -2483,7 +2482,7 @@ static int open_test_sp(int index)
 	}
 
 	if (frame1_cbk250 == NULL) {
-		frame1_cbk250 = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+		frame1_cbk250 = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 		if (ERR_ALLOC_MEM(frame1_cbk250)) {
 			ILI_ERR("Failed to allocate frame1_cbk250 buffer\n");
 			ipio_kfree((void **)&frame1_cbk700);
@@ -2494,7 +2493,7 @@ static int open_test_sp(int index)
 	}
 
 	if (frame1_cbk200 == NULL) {
-		frame1_cbk200 = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+		frame1_cbk200 = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 		if (ERR_ALLOC_MEM(frame1_cbk200)) {
 			ILI_ERR("Failed to allocate cbk buffer\n");
 			ipio_kfree((void **)&frame1_cbk700);
@@ -2505,7 +2504,7 @@ static int open_test_sp(int index)
 		memset(frame1_cbk200, 0x0, core_mp.frame_len);
 	}
 
-	tItems[index].node_type = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+	tItems[index].node_type = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 	if (ERR_ALLOC_MEM(tItems[index].node_type)) {
 		ILI_ERR("Failed to allocate node_type FRAME buffer\n");
 		return -EMP_NOMEM;
@@ -2525,8 +2524,8 @@ static int open_test_sp(int index)
 		dump_benchmark_data(tItems[index].bench_mark_max, tItems[index].bench_mark_min);
 	}
 
-	parser_ini_nodetype(tItems[index].node_type, NODE_TYPE_KEY_NAME, core_mp.frame_len);
-	dump_node_type_buffer(tItems[index].node_type, "node type");
+	parser_ini_nodetype(tItems[index].node_type, (char *) NODE_TYPE_KEY_NAME, core_mp.frame_len);
+dump_node_type_buffer(tItems[index].node_type, (char *) "node type");
 
 	parser_get_int_data(tItems[index].desp, "charge_aa", str, sizeof(str));
 	Charge_AA = ili_katoi(str);
@@ -2551,15 +2550,15 @@ static int open_test_sp(int index)
 			full_open_rate, open_para.tvch, open_para.tvcl);
 
 	for (i = 0; i < tItems[index].frame_count; i++) {
-		open[i].tdf_700 = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
-		open[i].tdf_250 = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
-		open[i].tdf_200 = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
-		open[i].cbk_700 = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
-		open[i].cbk_250 = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
-		open[i].cbk_200 = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
-		open[i].charg_rate = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
-		open[i].full_Open = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
-		open[i].dac = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+		open[i].tdf_700 = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+		open[i].tdf_250 = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+		open[i].tdf_200 = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+		open[i].cbk_700 = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+		open[i].cbk_250 = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+		open[i].cbk_200 = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+		open[i].charg_rate = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+		open[i].full_Open = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+		open[i].dac = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 	}
 
 	for (i = 0; i < tItems[index].frame_count; i++) {
@@ -2679,7 +2678,7 @@ static int open_test_cap(int index)
 
 	if (isOpenX) {
 		if (openx_cap_dac == NULL) {
-			openx_cap_dac = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+			openx_cap_dac = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 			if (ERR_ALLOC_MEM(openx_cap_dac)) {
 				ILI_ERR("Failed to allocate cap_dac buffer\n");
 				return -EMP_NOMEM;
@@ -2689,7 +2688,7 @@ static int open_test_cap(int index)
 		}
 
 		if (openx_cap_raw == NULL) {
-			openx_cap_raw = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+			openx_cap_raw = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 			if (ERR_ALLOC_MEM(openx_cap_raw)) {
 				ILI_ERR("Failed to allocate cap_raw buffer\n");
 				ipio_kfree((void **)&openx_cap_dac);
@@ -2700,7 +2699,7 @@ static int open_test_cap(int index)
 		}
 	} else {
 		if (cap_dac == NULL) {
-			cap_dac = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+			cap_dac = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 			if (ERR_ALLOC_MEM(cap_dac)) {
 				ILI_ERR("Failed to allocate cap_dac buffer\n");
 				return -EMP_NOMEM;
@@ -2710,7 +2709,7 @@ static int open_test_cap(int index)
 		}
 
 		if (cap_raw == NULL) {
-			cap_raw = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+			cap_raw = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 			if (ERR_ALLOC_MEM(cap_raw)) {
 				ILI_ERR("Failed to allocate cap_raw buffer\n");
 				ipio_kfree((void **)&cap_dac);
@@ -2768,9 +2767,9 @@ static int open_test_cap(int index)
 
 	ILI_INFO("gain = %d, tvch = %d, tvcl = %d, cbk_step = %d, cint = %d\n", open_para.gain, open_para.tvch, open_para.tvcl, open_para.cbk_step, open_para.cint);
 	for (i = 0; i < tItems[index].frame_count; i++) {
-		open[i].cap_dac = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
-		open[i].cap_raw = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
-		open[i].dcl_cap = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+		open[i].cap_dac = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+		open[i].cap_raw = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+		open[i].dcl_cap = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 	}
 
 	for (i = 0; i < tItems[index].frame_count; i++) {
@@ -2870,13 +2869,13 @@ out:
 
 static int self_test(int index)
 {
-	ILI_ERR("TDDI has no self to be tested currently\n");
+	ILI_ERR("TDDI has no self to be tested currently, %d\n", index);
 	return -1;
 }
 
 static int st_test(int index)
 {
-	ILI_ERR("ST Test is not supported by the driver\n");
+	ILI_ERR("ST Test is not supported by the driver, %d\n", index);
 	return -1;
 }
 
@@ -2885,7 +2884,7 @@ static int mp_get_timing_info(void)
 	int slen = 0;
 	char str[256] = {0};
 	u8 info[64] = {0};
-	char *key = "timing_info_raw";
+	const char *key = "timing_info_raw";
 
 	core_mp.isLongV = 0;
 
@@ -2921,8 +2920,8 @@ static int mp_test_data_sort_average(s32 *oringin_data, int index, s32 *avg_resu
 		return -ENOMEM;
 	}
 
-	u32data_buff = kcalloc(core_mp.frame_len * tItems[index].frame_count, sizeof(s32), GFP_KERNEL);
-	u32sum_raw_data = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+	u32data_buff = (s32 *) kcalloc(core_mp.frame_len * tItems[index].frame_count, sizeof(s32), GFP_KERNEL);
+	u32sum_raw_data = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 	if (ERR_ALLOC_MEM(u32sum_raw_data) || (ERR_ALLOC_MEM(u32data_buff))) {
 		ILI_ERR("Failed to allocate u32sum_raw_data FRAME buffer\n");
 		return -ENOMEM;
@@ -3041,14 +3040,14 @@ static int mp_compare_test_result(int index)
 	if (tItems[index].catalog == PIN_TEST)
 		return tItems[index].item_result;
 
-	max_threshold = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+	max_threshold = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 	if (ERR_ALLOC_MEM(max_threshold)) {
 		ILI_ERR("Failed to allocate threshold FRAME buffer\n");
 		test_result = MP_DATA_FAIL;
 		goto out;
 	}
 
-	min_threshold = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+	min_threshold = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 	if (ERR_ALLOC_MEM(min_threshold)) {
 		ILI_ERR("Failed to allocate threshold FRAME buffer\n");
 		test_result = MP_DATA_FAIL;
@@ -3152,26 +3151,23 @@ static void mp_do_retry(int index, int count)
 		return mp_do_retry(index, count - 1);
 }
 
-static int mp_show_result(bool lcm_on)
+static int mp_show_result()
 {
 	int ret = MP_DATA_PASS, seq;
 	int i, x, y, j, csv_len = 0, pass_item_count = 0, line_count = 0, get_frame_cont = 1;
 	s32 *max_threshold = NULL, *min_threshold = NULL;
 	char *csv = NULL;
-	char *ret_pass_name = NULL, *ret_fail_name = NULL;
-	struct file *f = NULL;
 	char dump_log[R_BUFF_SIZE] = {0};
-	loff_t pos;
 
-	csv = vmalloc(CSV_FILE_SIZE);
+	csv = (char *) vmalloc(CSV_FILE_SIZE);
 	if (ERR_ALLOC_MEM(csv)) {
 		ILI_ERR("Failed to allocate CSV mem\n");
 		ret = -EMP_NOMEM;
 		goto fail_open;
 	}
 
-	max_threshold = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
-	min_threshold = kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+	max_threshold = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
+	min_threshold = (s32 *) kcalloc(core_mp.frame_len, sizeof(s32), GFP_KERNEL);
 	if (ERR_ALLOC_MEM(max_threshold) || ERR_ALLOC_MEM(min_threshold)) {
 		ILI_ERR("Failed to allocate threshold FRAME buffer\n");
 		ret = -EMP_NOMEM;
@@ -3381,7 +3377,7 @@ static int mp_show_result(bool lcm_on)
 	    ILI_INFO("CSV path : %s\n",  ilitsmp->u8CsvPath);
 	    ILI_INFO("CSV FileName : %s.csv\n",  ilitsmp->u8CsvFileName);
 	    ILI_INFO("Write CSV File : %s%s.csv\n",  ilitsmp->u8CsvPath, ilitsmp->u8CsvFileName);
-		write(ilitsmp->csv_fp, csv, strlen(csv));
+		(void) write(ilitsmp->csv_fp, csv, strlen(csv));
 		ILI_INFO("Write CSV succeed, its length = %d\n", csv_len);
 	}
 	else {
@@ -3508,7 +3504,7 @@ void ili_mp_init_item(void)
 			tItems[i].do_test = mutual_test;
 		}
 
-		tItems[i].result = kmalloc(16, GFP_KERNEL);
+		tItems[i].result = (char *) kmalloc(16, GFP_KERNEL);
 		snprintf(tItems[i].result, 16, "%s", "FAIL");
 	}
 }
@@ -3786,11 +3782,11 @@ void ili_mp_copy_result(char *buf, size_t size)
 	}
 }
 
-void show_commom_mp_result(int mpret)
+void show_commom_mp_result(void)
 {
 	int output_len = 0, i;
 	char *testresult = NULL;
-	testresult = calloc( OUTPUT_SIZE, sizeof(char) );
+	testresult = (char *) calloc( OUTPUT_SIZE, sizeof(char) );
 
 	output_len += snprintf(testresult + output_len, (OUTPUT_SIZE - output_len), "\n");
 	for (i = 0; i < MP_TEST_ITEM; i++) {
@@ -3914,7 +3910,7 @@ int ili_mp_test_main(bool lcm_on)
 	ILI_INFO("Test item end\n");
 
 	ILI_DBG("Show Test Result\n");
-	ret = mp_show_result(lcm_on);
+	ret = mp_show_result();
 
 	ILI_INFO("final result=%d\n",core_mp.final_result);
 	if (core_mp.final_result == MP_DATA_FAIL)

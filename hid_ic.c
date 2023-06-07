@@ -27,14 +27,14 @@ struct ilitek_tp_info tp_info;
 #define PROTOCL_VER_NUM		8
 static struct ilitek_protocol_info protocol_info[PROTOCL_VER_NUM] = {
 	/* length -> fw, protocol, tp, key, panel, core, func, window, cdc, mp_info */
-	[0] = {PROTOCOL_VER_500, 4, 4, 14, 30, 5, 5, 2, 8, 3, 8},
-	[1] = {PROTOCOL_VER_510, 4, 3, 14, 30, 5, 5, 3, 8, 3, 8},
-	[2] = {PROTOCOL_VER_520, 4, 4, 14, 30, 5, 5, 3, 8, 3, 8},
-	[3] = {PROTOCOL_VER_530, 9, 4, 14, 30, 5, 5, 3, 8, 3, 8},
-	[4] = {PROTOCOL_VER_540, 9, 4, 14, 30, 5, 5, 3, 8, 15, 8},
-	[5] = {PROTOCOL_VER_550, 9, 4, 14, 30, 5, 5, 3, 8, 15, 14},
-	[6] = {PROTOCOL_VER_560, 9, 4, 14, 30, 5, 5, 3, 8, 15, 14},
-	[7] = {PROTOCOL_VER_570, 9, 4, 14, 30, 5, 5, 3, 8, 15, 14},
+	{PROTOCOL_VER_500, 4, 4, 14, 30, 5, 5, 2, 8, 3, 8},
+	{PROTOCOL_VER_510, 4, 3, 14, 30, 5, 5, 3, 8, 3, 8},
+	{PROTOCOL_VER_520, 4, 4, 14, 30, 5, 5, 3, 8, 3, 8},
+	{PROTOCOL_VER_530, 9, 4, 14, 30, 5, 5, 3, 8, 3, 8},
+	{PROTOCOL_VER_540, 9, 4, 14, 30, 5, 5, 3, 8, 15, 8},
+	{PROTOCOL_VER_550, 9, 4, 14, 30, 5, 5, 3, 8, 15, 14},
+	{PROTOCOL_VER_560, 9, 4, 14, 30, 5, 5, 3, 8, 15, 14},
+	{PROTOCOL_VER_570, 9, 4, 14, 30, 5, 5, 3, 8, 15, 14},
 };
 
 void ili_ic_disable_report(void)
@@ -77,7 +77,7 @@ int ili_ic_get_core_ver(void)
         ret = -1;
     }
 
-    return 0;
+    return ret;
 }
 
 int ili_ic_get_fw_ver(bool showinfo)
@@ -162,19 +162,12 @@ int ili_ic_init(void)
 {
     ILI_DBG("ili_ic_init()\n");
 
-	ilitsmp = malloc(sizeof(struct ilitek_ts_data_mp) * sizeof(u8));
+	ilitsmp = (ilitek_ts_data_mp *) malloc(sizeof(struct ilitek_ts_data_mp) * sizeof(u8));
 	if (ERR_ALLOC_MEM(ilitsmp)) {
 		ILI_ERR("Failed to allocate core_config mem\n");
 		return -ENOMEM;
 	}
 
-	// chip.pid_addr =		   	TDDI_PID_ADDR;
-	// chip.wdt_addr =		   	TDDI_WDT_ADDR;
-	// chip.pc_counter_addr = 	TDDI_PC_COUNTER_ADDR;
-	// chip.pc_latch_addr =	TDDI_PC_LATCH_ADDR;
-	// chip.otp_addr =		   	TDDI_OTP_ID_ADDR;
-	// chip.ana_addr =		   	TDDI_ANA_ID_ADDR;
-	// chip.reset_addr =	   	TDDI_CHIP_RESET_ADDR;
 
     ilitsmp->protocol = &protocol_info[PROTOCL_VER_NUM - 1];
     ilits.chip = chip;
@@ -186,8 +179,7 @@ int ili_ic_init(void)
 int ili_ic_get_info(void)
 {
 	int ret = 0;
-    u8 cmd[2] = {0};
-    u32 pid = 0, tmp = 0;
+    u32 pid = 0;
 
     if (ili_ice_mode_read(TDDI_PID_ADDR, &pid, sizeof(u32)) < 0)
 		ILI_ERR("Read pc conter error\n");
@@ -340,9 +332,8 @@ int ili_ic_check_busy(int count, int delay)
 
 int ili_move_mp_code_flash(void)
 {
-	int ret = 0, retry = 10;
+	int ret = 0;
 	u8 cmd[2] = {0};
-	u8 data[16] = {0};
 
 	cmd[0] = P5_X_NEW_CONTROL_FORMAT;
 	cmd[1] = P5_X_FW_TEST_MODE;

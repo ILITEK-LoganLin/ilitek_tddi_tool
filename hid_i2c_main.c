@@ -127,7 +127,6 @@ int get_fw_path_from_input(char *buf)
     char *substr = NULL;
     int len = 0;
     int path_format = PATH;
-    bool is_path_format;
     substr = strtok(buf, CMD_DELIN);
     do
     {
@@ -152,7 +151,6 @@ int get_fw_path_from_input(char *buf)
             }
             else
             {
-                is_path_format = DISABLE;
                 return RET_FAIL_NO;
             }
         }
@@ -160,19 +158,19 @@ int get_fw_path_from_input(char *buf)
         {
             if (path_format == PATH)
             {
-                strcpy(ilits.fw_path, substr);
+                strcpy((char *) ilits.fw_path, substr);
             }
             else if (path_format == INI_PATH)
             {
-                strcpy(ilits.ini_path, substr);
+                strcpy((char *) ilits.ini_path, substr);
             }
             else if (path_format == LOG_FILE_PATH)
             {
-                strcpy(ilits.save_path, substr);
+                strcpy((char *) ilits.save_path, substr);
             }
             else if (path_format == INPUT_DATA)
             {
-                strcpy(ilits.fw_path, substr);
+                strcpy((char *) ilits.fw_path, substr);
             }
         }
         else
@@ -215,7 +213,7 @@ void ili_wr_tp_reg(u8 *cmd, u8 casenum)
     u32 addr, read_data, write_data, len;
     char *token = NULL, *cur = NULL;
     ILI_INFO("%s\n", cmd);
-    token = cur = cmd;
+    token = cur = (char *) cmd;
     while ((token = strsep(&cur, ",")) != NULL)
     {
         if (count >= (sizeof(rw_reg) / sizeof(u32)))
@@ -248,14 +246,14 @@ bool isTDDI(void)
 {
     bool ret = false;
     u8 key[16] = {0};
-    ilitsmp = malloc(sizeof(struct ilitek_ts_data_mp) * sizeof(u8));
+    ilitsmp = (ilitek_ts_data_mp*) malloc(sizeof(struct ilitek_ts_data_mp) * sizeof(u8));
     ili_ic_init();
     ili_ic_get_info();
     ili_ic_get_protocl_ver();
-    snprintf(key, sizeof(key), "%04X%04X", ilits.chip.id, ilits.chip.potocal_ver >> 8);
+    snprintf((char *) &key, sizeof(key), "%04X%04X", ilits.chip.id, ilits.chip.potocal_ver >> 8);
     ILI_INFO("key = %s\n", key);
 
-    if ((strcmp(key, "98820506") == 0) || (strcmp(key, "98820507") == 0))
+    if ((strcmp((const char *) key, "98820506") == 0) || (strcmp((const char *) key, "98820507") == 0))
     {
         ret = true;
     }
@@ -265,13 +263,11 @@ bool isTDDI(void)
 
 int main(int argc, char **argv)
 {
-    int res, i, count, retry;
+    int res, i, retry;
     int ret = 0;
-    u8 buf[4096] = {0};
-    u32 u32Tmp;
 
     // ILI_INFO("%s\n", argv[1]);
-
+    ILI_DBG("argc = %d\n", argc);
     init_hid();
     if (argv[1] == NULL)
     {
@@ -311,7 +307,7 @@ int main(int argc, char **argv)
         retry = FW_UPGRADE_RETRY;
         do
         {
-            if (open_hex(ilits.fw_path) < 0)
+            if (open_hex((char *) &ilits.fw_path) < 0)
             {
                 ILI_ERR("error file : %s\n", ilits.fw_path);
                 break;
@@ -345,11 +341,11 @@ int main(int argc, char **argv)
         }
         break;
     case CHECK_CRC:
-        printf("fw-crc-tag: [%s]\n", (check_fw_crc(&ilits.fw_path[0]) == UPDATE_PASS) ? "CRC_PASS" : "CRC_FAIL");
+        printf("fw-crc-tag: [%s]\n", (check_fw_crc((char *) &ilits.fw_path[0]) == UPDATE_PASS) ? "CRC_PASS" : "CRC_FAIL");
         break;
     case MP_LCM_ON:
-        ILI_INFO("ILITEK HID TOOL VERSION = %s, testcase = %d\n", HID_DAEMON_VERSION, testcase);
-        res = ili_mp_test(&ilits.ini_path[0], &ilits.save_path[0]);
+        ILI_INFO("ILITEK HID TOOL VERSION = %s\n", HID_DAEMON_VERSION);
+        res = ili_mp_test((u8 *) &ilits.ini_path[0], (u8 *) &ilits.save_path[0]);
         res = (res == MP_TEST_PASS) ? RET_PASS : RET_FAIL;
         break;
     case RESET:
@@ -377,10 +373,10 @@ int main(int argc, char **argv)
         ili_ic_get_protocl_ver();
         break;
     case WRITE_TP_REG:
-        ili_wr_tp_reg(&ilits.fw_path[0], WRITE);
+        ili_wr_tp_reg(ilits.fw_path, WRITE);
         break;
     case READ_TP_REG:
-        ili_wr_tp_reg(&ilits.fw_path[0], READ);
+        ili_wr_tp_reg(ilits.fw_path, READ);
         break;
     case SWITCH_AP_MODE:
         ili_hid_switch_tp_mode(P5_X_FW_AP_MODE);

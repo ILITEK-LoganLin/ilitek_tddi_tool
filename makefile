@@ -18,7 +18,7 @@ include_path := ./include
 source_path := ./src
 
 CXX ?= aarch64-linux-gcc
-# CXX := aarch64-linux-gcc
+# CXX := aarch64-cros-linux-gnu-clang++
 
 CXXFLAGS = -Wall -Wextra -O3 -g
 CXXFLAGS += -D__ENABLE_DEBUG__

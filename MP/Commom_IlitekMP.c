@@ -25,7 +25,7 @@ int createSaveDirPath(u8 *pathname)
 {
     mode_t mode = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH;
 
-    if (mkdir(pathname, mode) == DIR_EXIST)
+    if (mkdir((char *) pathname, mode) == DIR_EXIST)
     {
         ILI_DBG("%s is exist\n", pathname);
     }
@@ -112,10 +112,9 @@ out:
 	return ret;
 }
 
-int ili_mp_test(char *ini_path, char *save_path)
+int ili_mp_test(u8 *ini_path, u8 *save_path)
 {
     int ret = MP_TEST_NONE;;
-    bool hasIniPath = false;
 
     ILI_INFO("ini path = %s, save path = %s\n", ini_path, save_path);
     if (createSaveDirPath(save_path) < 0) {
@@ -131,13 +130,13 @@ int ili_mp_test(char *ini_path, char *save_path)
         ret != MP_GET_PROTOCOL_VERSION_FAIL && ret != MP_GET_FW_VERSION_FAIL &&
         ret != MP_GET_TP_INFO_FAIL && ret != MP_GET_PANEL_INFO_FAIL)
     {
-        ret = loadConfig(ini_path);
+        ret = loadConfig((char *) ini_path);
 
         sleep(1);
 
         if (ret != MP_LOAD_MP_INI_FAIL)
         {
-            createReport(save_path, CSV_TEMP);
+            createReport((char *) save_path, (char *) CSV_TEMP);
 
             // MP lcm on test
             ret = startMPTest(LCM_ON);
@@ -152,8 +151,8 @@ int ili_mp_test(char *ini_path, char *save_path)
                 ILI_INFO("Final Result = FAIL\n");
             }
 
-            modifyOutputFile(ret, save_path);
-            show_commom_mp_result(ret);
+            modifyOutputFile(ret, (char *) save_path);
+            show_commom_mp_result();
         } else {
             printf("Error! Ilitek MP ini file no exist.\n");
         }
