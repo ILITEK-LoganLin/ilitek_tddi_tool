@@ -33,7 +33,7 @@
 #include <linux/hidraw.h>
 #include <sys/ioctl.h>
 
-#define HID_DAEMON_VERSION "2.0.2.0"
+#define HID_DAEMON_VERSION "2.0.4.0"
 
 #define HID_RAW_NODE "/dev/hidraw0"
 #define RET_FAIL_NO -1
@@ -69,6 +69,11 @@
 #define P5_X_GET_CORE_VERSION_NEW 0x24
 #define P5_X_GET_KEY_INFORMATION 0x27
 #define P5_X_GET_PANEL_INFORMATION 0x29
+#define P5_X_GET_PEN_INFO 0x27
+#define P5_X_GET_ALL_INFORMATION 0x2F
+
+#define POSITION_PEN_TYPE_ON 0x00
+#define POSITION_PEN_TYPE_OFF 0x03
 
 #define FW_BLOCK_INFO_NUM 17
 
@@ -304,11 +309,25 @@ struct ilitek_ic_info
     u32 potocal_ver;
 };
 
+struct pen_info_block {
+	u8 nPxRaw;
+	u8 nPyRaw;
+	u8 nPxVa;
+	u8 nPyVa;
+	u8 nPenX_MP;
+	u8 nReserved01;
+	u8 nReserved02;
+	u8 nReserved03;
+};
+
 struct ilitek_ts_data
 {
     struct ilitek_ic_info chip;
     struct firmware tp_fw;
     struct report_info_block rib;
+
+    u8 PenType;
+    struct pen_info_block pen_info_block;
 
     int fd_hidraw;
     u8 fw_path[512];
@@ -393,10 +412,12 @@ extern int do_fw_upgrade_test(void);
 extern int ili_mp_test(u8 *ini_path, u8 *save_path);
 extern void ili_ic_check_protocol_ver(u32 pver);
 extern int ili_ic_get_tp_info(void);
+extern int ili_ic_get_pen_info(void);
 extern int ili_ic_get_panel_info(void);
 extern int ili_hid_switch_tp_mode(u8 mode);
 extern void switch_bootloader(void);
 extern int check_fw_crc(char *file_path);
 extern int ili_mp_lcm_ctrl(u8 lcm_on);
 extern int ili_mp_test_main(bool lcm_on);
+extern int ili_ic_get_all_info(void);
 #endif

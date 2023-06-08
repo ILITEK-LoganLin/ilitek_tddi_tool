@@ -85,6 +85,8 @@ enum TP_ICE_MCU_MODE {
 #define P5_X_DEMO_DEBUG_INFO_PACKET_ID		0x5C
 #define P5_X_EDGE_PLAM_CTRL_1				0x01
 #define P5_X_EDGE_PLAM_CTRL_2				0x12
+#define P5_X_GET_PEN_INFO		            0x27
+#define P5_X_GET_ALL_INFORMATION			0x2F
 #define SPI_WRITE					        0x82
 #define SPI_READ					        0x83
 #define SPI_ACK						        0xA3

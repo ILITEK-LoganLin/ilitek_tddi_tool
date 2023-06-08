@@ -249,6 +249,43 @@ out:
     return ret;
 }
 
+int ili_ic_get_pen_info(void)
+{
+    int ret = 0;
+    u8 cmd[2] = {0};
+
+    cmd[0] = P5_X_GET_PEN_INFO;
+
+    if (ilits.wrapper(cmd, sizeof(u8), ilits.rbuf, 9) < 0)
+    {
+        ILI_ERR("Read panel info error\n");
+        ret = -EINVAL;
+    }
+	
+	if (ilits.rbuf[READ_SHIFT - 1] != cmd[0]) {
+		ILI_INFO("Invalid Pen info, use default report format resolution\n");
+		ilits.PenType = POSITION_PEN_TYPE_OFF;
+		ilits.pen_info_block.nPxRaw = 0;
+		ilits.pen_info_block.nPyRaw = 0;
+		ilits.pen_info_block.nPxVa = 0;
+		ilits.pen_info_block.nPyVa = 0;
+		ilits.pen_info_block.nPenX_MP = 0;
+	} else {
+		ilits.PenType = POSITION_PEN_TYPE_OFF;
+		ilits.pen_info_block.nPxRaw = ilits.rbuf[READ_SHIFT];
+		ilits.pen_info_block.nPyRaw = ilits.rbuf[READ_SHIFT + 1];
+		ilits.pen_info_block.nPxVa = ilits.rbuf[READ_SHIFT + 2];
+		ilits.pen_info_block.nPyVa = ilits.rbuf[READ_SHIFT + 3];
+		ilits.pen_info_block.nPenX_MP = ilits.rbuf[READ_SHIFT + 4];
+		if ((ilits.pen_info_block.nPxRaw > 0) && (ilits.pen_info_block.nPyRaw > 0)){
+		    ilits.PenType = POSITION_PEN_TYPE_ON;
+		}
+	}
+	ILI_INFO("Pen Len Info : PxRaw = %d, PyRaw = %d, PxVa = %d, PyVa = %d, nPenX_MP = %d\n", ilits.pen_info_block.nPxRaw, ilits.pen_info_block.nPyRaw, ilits.pen_info_block.nPxVa, ilits.pen_info_block.nPyVa, ilits.pen_info_block.nPenX_MP);
+
+    return ret;
+}
+
 int ili_ic_get_panel_info(void)
 {
     int ret = 0;
@@ -267,6 +304,106 @@ int ili_ic_get_panel_info(void)
 	ILI_INFO("Panel info: width = %d, height = %d\n", ilitsmp->tp_info->panel_wid, ilitsmp->tp_info->panel_hei);
 
     return ret;
+}
+
+int ili_ic_get_all_info(void)
+{
+	int ret = 0;
+
+	u8 cmd;
+    ilits.wbuf[0] = P5_X_GET_ALL_INFORMATION;
+	//u8 buf[100] = {0};
+	bool get_all_info;
+	u8 ReadShift = 1;
+
+	if (ilits.wrapper(ilits.wbuf, 1, ilits.rbuf, 96) < 0) {
+		ILI_ERR("Write ALL info cmd failed\n");
+		get_all_info = false;
+		ret = -EINVAL;
+	}
+
+	if (ilits.rbuf[ReadShift + 0] == P5_X_GET_ALL_INFORMATION) { 
+		get_all_info = true;
+
+		/* CORE_VERSION */
+		ilits.chip.core_ver = ilits.rbuf[ReadShift + 25] << 24 | ilits.rbuf[ReadShift + 26] << 16 | ilits.rbuf[ReadShift + 27] << 8 | ilits.rbuf[ReadShift + 28];
+
+		/*GET_TP_INFORMATION*/
+		tp_info.min_x = ilits.rbuf[ReadShift + 2];
+		tp_info.min_y = ilits.rbuf[ReadShift + 3];
+		tp_info.max_x = ilits.rbuf[ReadShift + 5] << 8 | ilits.rbuf[ReadShift + 4];
+		tp_info.max_y = ilits.rbuf[ReadShift + 7] << 8 | ilits.rbuf[ReadShift + 6];
+		tp_info.xch_num = ilits.rbuf[ReadShift + 8];
+		tp_info.ych_num = ilits.rbuf[ReadShift + 9];
+		tp_info.stx = ilits.rbuf[ReadShift + 12];
+		tp_info.srx = ilits.rbuf[ReadShift + 13];
+		ilitsmp->tp_info = &tp_info;
+
+		/* GET_FW_VERSION */
+		ilits.chip.fw_ver = ilits.rbuf[ReadShift + 16] << 24 | ilits.rbuf[ReadShift + 17] << 16 | ilits.rbuf[ReadShift + 18] << 8 | ilits.rbuf[ReadShift + 19];
+		ilits.chip.fw_mp_ver = ilits.rbuf[ReadShift + 20] << 24 | ilits.rbuf[ReadShift + 21] << 16 | ilits.rbuf[ReadShift + 22] << 8 | ilits.rbuf[ReadShift + 23];
+	
+		/* GET_PANEL_INFORMATION */
+		cmd = P5_X_GET_PANEL_INFORMATION;
+		if (ilits.rbuf[ReadShift + 46] != cmd) {
+			ILI_INFO("Invalid panel info, use default resolution\n");
+			ilitsmp->tp_info->panel_wid = TOUCH_SCREEN_X_MAX;
+			ilitsmp->tp_info->panel_hei = TOUCH_SCREEN_Y_MAX;
+			//ilits->trans_xy = OFF;
+		} else {
+			ilitsmp->tp_info->panel_wid = ilits.rbuf[ReadShift + 47] << 8 | ilits.rbuf[ReadShift + 48];
+			ilitsmp->tp_info->panel_hei = ilits.rbuf[ReadShift + 49] << 8 | ilits.rbuf[ReadShift + 50];
+			//ilits->trans_xy = (ilits.chip.core_ver >= CORE_VER_1430) ? buf[51] : OFF;
+		}
+
+		/* GET_PEN_INFO */
+		cmd = P5_X_GET_PEN_INFO;
+		if (ilits.rbuf[ReadShift + 57] != cmd) {
+			ILI_INFO("Invalid Pen info, use default report format resolution\n");
+			ilits.PenType = POSITION_PEN_TYPE_OFF;
+			ilits.pen_info_block.nPxRaw = 0;
+			ilits.pen_info_block.nPyRaw = 0;
+			ilits.pen_info_block.nPxVa = 0;
+			ilits.pen_info_block.nPyVa = 0;
+			ilits.pen_info_block.nPenX_MP = 0;
+		} else {
+		    ilits.PenType = POSITION_PEN_TYPE_OFF;
+			ilits.pen_info_block.nPxRaw = ilits.rbuf[ReadShift + 58];
+			ilits.pen_info_block.nPyRaw = ilits.rbuf[ReadShift + 59];
+			ilits.pen_info_block.nPxVa = ilits.rbuf[ReadShift + 60];
+			ilits.pen_info_block.nPyVa = ilits.rbuf[ReadShift + 61];
+			ilits.pen_info_block.nPenX_MP = ilits.rbuf[ReadShift + 62];
+			if ((ilits.pen_info_block.nPxRaw > 0) && (ilits.pen_info_block.nPyRaw > 0)){
+				ilits.PenType = POSITION_PEN_TYPE_ON;
+			}
+		}
+		/* reserved : buf[62] ~ buf[65] = 0xFF */
+
+
+	} else {
+		ILI_ERR("Read 0x2F error, buf[0] = 0x%X, buf[1] = 0x%X, buf[2] = 0x%X, buf[3] = 0x%X, buf[4] = 0x%X\n", ilits.rbuf[0], ilits.rbuf[1], ilits.rbuf[2], ilits.rbuf[3], ilits.rbuf[4]);
+		get_all_info = false;
+	}
+
+	if (get_all_info == true) {
+	    if (ili_ic_get_protocl_ver() < 0) {
+			ILI_ERR("Failed to get protocal version\n");
+	        ret = -EINVAL;
+		}
+		ILI_INFO("Firmware version(0x%8X) = %d.%d.%d.%d\n",ilits.chip.fw_ver , ilits.rbuf[ReadShift + 16], ilits.rbuf[ReadShift + 17], ilits.rbuf[ReadShift + 18], ilits.rbuf[ReadShift + 19]);
+		ILI_INFO("Protocol version = %d.%d.%d\n", ilits.chip.potocal_ver >> 16, (ilits.chip.potocal_ver >> 8) & 0xFF, ilits.chip.potocal_ver & 0xFF);
+		ILI_INFO("Firmware MP version(0x%8X) = %d.%d.%d.%d\n",ilits.chip.fw_mp_ver , ilits.rbuf[ReadShift + 20], ilits.rbuf[ReadShift + 21], ilits.rbuf[ReadShift + 22], ilits.rbuf[ReadShift + 23]);
+        ILI_INFO("Core version = %d.%d.%d.%d\n", ilits.chip.core_ver >> 24, (ilits.chip.core_ver >> 16) & 0xFF, (ilits.chip.core_ver >> 8) & 0xFF, ilits.chip.core_ver & 0xFF);
+		ILI_INFO("TP Info: min_x = %d, min_y = %d, max_x = %d, max_y = %d\n", tp_info.min_x, tp_info.min_y, tp_info.max_x, tp_info.max_y);
+		ILI_INFO("TP Info: xch = %d, ych = %d, stx = %d, srx = %d\n", tp_info.xch_num, tp_info.ych_num, tp_info.stx, tp_info.srx);
+		ILI_INFO("Pen Len Info : PxRaw = %d, PyRaw = %d, PxVa = %d, PyVa = %d, nPenX_MP = %d\n", ilits.pen_info_block.nPxRaw, ilits.pen_info_block.nPyRaw, ilits.pen_info_block.nPxVa, ilits.pen_info_block.nPyVa, ilits.pen_info_block.nPenX_MP);
+		ILI_INFO("Panel info: width = %d, height = %d\n", ilitsmp->tp_info->panel_wid, ilitsmp->tp_info->panel_hei);
+	} else {
+		ret = -EINVAL;
+	}
+
+
+	return ret;
 }
 
 void ili_ic_get_pc_counter(void)

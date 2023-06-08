@@ -18,6 +18,8 @@
  */
 #include "hidi2c.h"
 
+#define READ_INT_LIMIT 64
+
 /* Debug level */
 bool log_en = ENABLE;
 bool debug_log_en = DISABLE;
@@ -178,6 +180,7 @@ void check_hidraw_info(void)
     }
 }
 
+
 int ili_i2c_wrapper(u8 *txbuf, u32 wlen, u8 *rxbuf, u32 rlen)
 {
     int ret = 0, operate = -1, index = 0;
@@ -192,23 +195,41 @@ int ili_i2c_wrapper(u8 *txbuf, u32 wlen, u8 *rxbuf, u32 rlen)
 
     if (operate == RW_SYNC || operate == W_ONLY)
     {
-        wdata[0] = 0x03;
-        wdata[1] = 0xA3;
-        wdata[2] = wlen & 0xff;
-        wdata[3] = rlen & 0xff;
-        index = 4;
-        if (rlen > 0xFF) {
-            wdata[3] = 0;
-        }
+	    if (rlen > READ_INT_LIMIT){
+			wdata[0] = 0x03;
+			wdata[1] = 0xA4;
+			wdata[2] = wlen & 0xff;
+			wdata[3] = ((wlen >> 8) & 0xff);
+			wdata[4] = rlen & 0xff;
+			wdata[5] = ((rlen >> 8) & 0xff);
+			index = 6;
+		}
+		else
+        {
+			wdata[0] = 0x03;
+			wdata[1] = 0xA3;
+			wdata[2] = wlen & 0xff;
+			wdata[3] = rlen & 0xff;
+			index = 4;
+			if (rlen > 0xFF) {
+				wdata[3] = 0;
+			}
+		}
     }
     else
     {
         index = 1;
     }
 
-    if (rlen > 0)
-        rlen += 3;
-    wlen += 4;
+    if (rlen > 0){
+	    if (wdata[1] == 0xA3){
+		    rlen += 3;
+		}
+        else if (wdata[1] == 0xA4){
+		    rlen += 4;
+		}
+	}
+    wlen += index;
 
     switch (operate)
     {
@@ -230,7 +251,7 @@ int ili_i2c_wrapper(u8 *txbuf, u32 wlen, u8 *rxbuf, u32 rlen)
         }
 
     case R_ONLY:
-        if (rlen > 64)
+        if (rlen > READ_INT_LIMIT)
         {
             ret = (int)TimeoutRead(ilits.fd_hidraw, rxbuf, 10, MP_INT_TIMEOUT);
             if (rlen <= 1500)
@@ -249,7 +270,6 @@ int ili_i2c_wrapper(u8 *txbuf, u32 wlen, u8 *rxbuf, u32 rlen)
                 rlen = 6000;
                 // rlen = 4080;
             }
-            ILI_INFO("***********HIDIOCGFEATURE**************\n");
             ret = ioctl(ilits.fd_hidraw, HIDIOCGFEATURE(rlen), rxbuf);
             if (ret < 0) {
                 ILI_ERR("retry HIDIOCGFEATURE\n");

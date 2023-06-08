@@ -78,36 +78,43 @@ int initDevice(void)
 		goto out;
 	}
 
-    if (ili_ic_get_core_ver() < 0) {
-		ILI_ERR("Failed to get core version\n");
-        ret = MP_GET_CORE_VERSION_FAIL;
-		goto out;
-	}
+    if (ili_ic_get_all_info() < 0) {
+        if (ili_ic_get_core_ver() < 0) {
+            ILI_ERR("Failed to get core version\n");
+            ret = MP_GET_CORE_VERSION_FAIL;
+            goto out;
+        }
 
-    if (ili_ic_get_protocl_ver() < 0) {
-		ILI_ERR("Failed to get protocal version\n");
-        ret = MP_GET_PROTOCOL_VERSION_FAIL;
-		goto out;
-	}
+        if (ili_ic_get_protocl_ver() < 0) {
+            ILI_ERR("Failed to get protocal version\n");
+            ret = MP_GET_PROTOCOL_VERSION_FAIL;
+            goto out;
+        }
 
-	if (ili_ic_get_fw_ver(true) < 0) {
-		ILI_ERR("Failed to get firmware version\n");
-        ret = MP_GET_FW_VERSION_FAIL;
-		goto out;
-	}
+        if (ili_ic_get_fw_ver(true) < 0) {
+            ILI_ERR("Failed to get firmware version\n");
+            ret = MP_GET_FW_VERSION_FAIL;
+            goto out;
+        }
 
-	if (ili_ic_get_tp_info() < 0) {
-		ILI_ERR("Failed to get TP information\n");
-        ret = MP_GET_TP_INFO_FAIL;
-		goto out;
-	}
+        if (ili_ic_get_tp_info() < 0) {
+            ILI_ERR("Failed to get TP information\n");
+            ret = MP_GET_TP_INFO_FAIL;
+            goto out;
+        }
 
-	if (ili_ic_get_panel_info() < 0) {
-		ILI_ERR("Failed to get panel information\n");
-        ret = MP_GET_PANEL_INFO_FAIL;
-		goto out;
-	}
+        if (ili_ic_get_pen_info() < 0) {
+            ILI_ERR("Failed to get pen information\n");
+            ret = MP_GET_PEN_INFO_FAIL;
+            goto out;
+        }
 
+        if (ili_ic_get_panel_info() < 0) {
+            ILI_ERR("Failed to get panel information\n");
+            ret = MP_GET_PANEL_INFO_FAIL;
+            goto out;
+        }
+    }
 out:
 	return ret;
 }

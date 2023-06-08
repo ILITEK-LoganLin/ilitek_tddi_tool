@@ -64,6 +64,7 @@
 #define MP_GET_FW_VERSION_FAIL                  0x19
 #define MP_GET_PANEL_INFO_FAIL                  0x1A
 #define MP_GET_DRIVER_VERSION_FAIL	            0x1B
+#define MP_GET_PEN_INFO_FAIL                    0x1C
 
 #define R_BUFF_SIZE 6 * K
 

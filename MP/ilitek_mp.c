@@ -137,6 +137,14 @@ enum mp_test_catalog {
 	PEAK_TO_PEAK_TEST = 8,
 	SHORT_TEST = 9,
 	PIN_TEST = 10,
+	TIPRING_RAW = 11,
+	TIPRING_P2P = 12,
+};
+
+enum mp_tipring_type {
+	TIPRING_XY = 0,
+	TIPRING_X,
+	TIPRING_Y
 };
 
 struct mp_test_P540_open {
@@ -204,6 +212,9 @@ static struct core_mp_test_data {
 	int cdc_len;
 	int xch_len;
 	int ych_len;
+	int nPxRaw;
+	int nPyRaw;
+	int nPenX_MP_Len;
 	int stx_len;
 	int srx_len;
 	int key_len;
@@ -212,6 +223,9 @@ static struct core_mp_test_data {
 	int mp_items;
 	int final_result;
 	int short_varia;
+	int nPxRaw_tipring_len;
+	int nPyRaw_tipring_len;
+	int tipring_len;
 
 	u32 overlay_start_addr;
 	u32 overlay_end_addr;
@@ -254,6 +268,10 @@ struct mp_test_items {
 	int item_result;
 	int min;
 	int min_res;
+	int max1;
+	int max2;
+	int min1;
+	int min2;
 	int frame_count;
 	int trimmed_mean;
 	int lowest_percentage;
@@ -282,7 +300,7 @@ struct mp_test_items {
 	int (*do_test)(int index);
 };
 
-#define MP_TEST_ITEM	52
+#define MP_TEST_ITEM	56
 static struct mp_test_items tItems[MP_TEST_ITEM] = {
 	{.desp = "baseline data(bg)", .catalog = MUTUAL_TEST, .cmd = CMD_MUTUAL_BG, .lcm = ON},
 	{.desp = "untouch signal data(bg-raw-4096) - mutual", .catalog = MUTUAL_TEST, .cmd = CMD_MUTUAL_SIGNAL, .lcm = ON},
@@ -330,6 +348,8 @@ static struct mp_test_items tItems[MP_TEST_ITEM] = {
 	{.desp = "open test_c", .catalog = OPEN_TEST, .lcm = ON},
 	{.desp = "touch deltac", .catalog = MUTUAL_TEST, .lcm = ON},
 	{.desp = "raw data_vmd_noise(no bk)", .catalog = MUTUAL_TEST, .cmd = CMD_MUTUAL_NO_BK, .lcm = ON},
+	{.desp = "pen tipring raw test", .catalog = TIPRING_RAW, .lcm = ON},
+	{.desp = "pen tipring p2p test", .catalog = TIPRING_P2P, .lcm = ON},
 	{.desp = "open test_c (openx enable)", .catalog = OPEN_TEST, .lcm = ON},
 	/* LCM OFF TEST */
 	{.desp = "raw data(have bk) (lcm off)", .catalog = MUTUAL_TEST, .lcm = OFF},
@@ -338,6 +358,8 @@ static struct mp_test_items tItems[MP_TEST_ITEM] = {
 	{.desp = "noise peak to peak(ic only) (lcm off)", .catalog = PEAK_TO_PEAK_TEST, .lcm = OFF},
 	{.desp = "raw data_td (lcm off)", .catalog = MUTUAL_TEST, .lcm = OFF},
 	{.desp = "peak to peak_td (lcm off)", .catalog = PEAK_TO_PEAK_TEST, .lcm = OFF},
+	{.desp = "pen tipring raw test (lcm off)", .catalog = TIPRING_RAW, .lcm = OFF},
+	{.desp = "pen tipring p2p test (lcm off)", .catalog = TIPRING_P2P, .lcm = OFF},
 };
 
 static struct run_index {
@@ -525,6 +547,15 @@ static void parser_ini_benchmark(s32 *max_ptr, s32 *min_ptr, u8 type, const char
 			}
 		}
 	}
+}
+
+static char *get_csv_frame_name(const char *name, int num)
+{
+	static char frame_name[128] = { 0 };
+	memset(frame_name, 0, sizeof(frame_name));
+	sprintf(frame_name, "%s%d", name, num);
+
+	return frame_name;
 }
 
 static int parser_get_tdf_value(char *str, int catalog)
@@ -1188,10 +1219,19 @@ static void mp_print_csv_tail(char *csv, int *csv_len, int file_size)
 
 	for (seq = 0; seq < ri.count; seq++) {
 		i = ri.index[seq];
-		if (tItems[i].item_result == MP_DATA_PASS)
-			tmp_len += snprintf(csv + tmp_len, (file_size - tmp_len), "	  {%s}	   ,OK\n", tItems[i].desp);
-		else
-			tmp_len += snprintf(csv + tmp_len, (file_size - tmp_len), "	  {%s}	   ,NG\n", tItems[i].desp);
+		if (tItems[i].item_result == MP_DATA_PASS) {
+			if (tItems[i].goldenmode && (tItems[i].spec_option != tItems[i].goldenmode)) {
+				tmp_len += snprintf(csv + tmp_len, (file_size - tmp_len), "	  {%s}	   ,OK, Warning, No Golden\n", tItems[i].desp);
+			} else {
+				tmp_len += snprintf(csv + tmp_len, (file_size - tmp_len), "	  {%s}	   ,OK\n", tItems[i].desp);
+			}
+		} else {
+			if (tItems[i].goldenmode && (tItems[i].spec_option != tItems[i].goldenmode)) {
+				tmp_len += snprintf(csv + tmp_len, (file_size - tmp_len), "   {%s}	   ,NG, Warning, No Golden\n", tItems[i].desp);
+			} else {
+				tmp_len += snprintf(csv + tmp_len, (file_size - tmp_len), "	  {%s}	   ,NG\n", tItems[i].desp);
+			}
+		}
 	}
 
 	*csv_len = tmp_len;
@@ -1325,6 +1365,97 @@ static void mp_compare_cdc_show_result(int index, s32 *tmp, char *csv,
 					tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "#%7d,", tmp[shift]);
 				}
 				mp_result = MP_DATA_FAIL;
+			}
+		}
+		tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "\n");
+		ILI_DBG("%s\n", dump_log);
+		memset(dump_log, '\0', sizeof(dump_log));
+	}
+
+out:
+	if (type == TYPE_JUGE) {
+		if (mp_result == MP_DATA_PASS) {
+			ILI_DBG("Result : PASS\n");
+			tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "Result : PASS\n");
+		} else {
+			ILI_DBG("Result : FAIL\n");
+			tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "Result : FAIL\n");
+		}
+	}
+	*csv_len = tmp_len;
+}
+
+static void mp_compare_tip_ring_cdc_show_result(int index, s32 *tmp, char *csv,
+				int *csv_len, int type, s32 *max_ts, s32 *min_ts, const char *desp,
+				int file_zise, int trtype)
+{
+	int x, y, tmp_len = *csv_len;
+	int row, col, typeshift;
+	int mp_result = MP_DATA_PASS;
+        char dump_log[R_BUFF_SIZE] = {0};
+
+	if (ERR_ALLOC_MEM(tmp)) {
+		ILI_ERR("The data of test item is null (%p), index = %d\n", tmp, index);
+		mp_result = -EMP_INVAL;
+		goto out;
+	}
+	if (trtype == TIPRING_X) {
+		row = core_mp.nPenX_MP_Len;
+		col = core_mp.nPxRaw * 2;
+		typeshift = 0;
+	} else {
+		row = core_mp.nPyRaw * 2;
+		col = core_mp.ych_len;
+		typeshift = core_mp.nPxRaw_tipring_len;
+	}
+
+	/* print X row only */
+	for (x = 0; x < row; x++) {
+		if (x == 0) {
+			sprintf(dump_log,"%s", desp);
+			tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "\n	   %s ,", desp);
+		}
+		sprintf(dump_log, "%s   X_%d  ,", dump_log, (x+1));
+		tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "	 X_%d  ,", (x+1));
+	}
+
+	ILI_DBG("%s\n", dump_log);
+	memset(dump_log, '\0', sizeof(dump_log));
+	tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "\n");
+	for (y = 0; y < col; y++) {
+		sprintf(dump_log, "%sY_%d  ,", dump_log, (y+1));
+		tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "	 Y_%d  ,", (y+1));
+
+		for (x = 0; x < row; x++) {
+			int nDataShift = 0, shift = 0;
+			shift = typeshift + y * row + x;
+			if (trtype == TIPRING_X)
+				nDataShift = shift;
+			else
+				nDataShift = typeshift + x * col + y;
+
+			if (type == TYPE_BENCHMARK) {
+				if (tmp[shift] == INT_MAX || tmp[shift] == INT_MIN) {
+					sprintf(dump_log,"%s %s" , dump_log, "BYPASS,");
+					tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "BYPASS,");
+				} else {
+					sprintf(dump_log,"%s %7d " , dump_log, tmp[shift]);
+					tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), " %7d, ", tmp[shift]);
+				}
+			} else {
+				if ((tmp[nDataShift] <= max_ts[shift] && tmp[nDataShift] >= min_ts[shift]) || (type != TYPE_JUGE)) {
+					sprintf(dump_log,"%s %7d " , dump_log, tmp[shift]);
+					tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), " %7d, ", tmp[nDataShift]);
+				} else {
+					if (tmp[nDataShift] > max_ts[shift]) {
+						sprintf(dump_log,"%s *%7d " , dump_log, tmp[shift]);
+						tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "*%7d,", tmp[nDataShift]);
+					} else {
+						sprintf(dump_log,"%s #%7d " , dump_log, tmp[shift]);
+						tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "#%7d,", tmp[nDataShift]);
+					}
+					mp_result = MP_DATA_FAIL;
+				}
 			}
 		}
 		tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "\n");
@@ -1889,7 +2020,10 @@ static int allnode_peak_to_peak_cdc_data(int index)
 	u8 *ori = NULL;
 
 	/* Multipling by 2 is due to the 16 bit in each node */
-	len = (core_mp.frame_len * 2) + 2;
+	if (tItems[index].catalog == TIPRING_P2P)
+		len = (core_mp.tipring_len * 2) + 2;
+	else
+		len = (core_mp.frame_len * 2) + 2;
 
 	ILI_DBG("Read X/Y Channel length = %d\n", len);
 
@@ -1973,7 +2107,7 @@ static int allnode_peak_to_peak_cdc_data(int index)
 		ili_dump_data(ori, 8, len, 32, "Mutual CDC original");
 
 		/* Convert original data to the physical one in each node */
-		for (i = 0; i < core_mp.frame_len; i++) {
+		for (i = 0; i < (len / 2 - 1); i++) {
 			/* H byte + L byte */
 			s32 tmp = (ori[(2 * i) + 1] << 8) + ori[(1 + (2 * i)) + 1];
 
@@ -1989,11 +2123,11 @@ static int allnode_peak_to_peak_cdc_data(int index)
 	}
 
 	if (tItems[index].bch_mrk_multi) {
-		ili_dump_data(frm_buf[0], 32, core_mp.frame_len, core_mp.xch_len, "Mutual CDC combined[0]/frame1");
-		ili_dump_data(frm_buf[1], 32, core_mp.frame_len, core_mp.xch_len, "Mutual CDC combined[1]/frame2");
-		ili_dump_data(frm_buf[2], 32, core_mp.frame_len, core_mp.xch_len, "Mutual CDC combined[2]/frame3");
+		ili_dump_data(frm_buf[0], 32, (len / 2 - 1), core_mp.xch_len, "Mutual CDC combined[0]/frame1");
+		ili_dump_data(frm_buf[1], 32, (len / 2 - 1), core_mp.xch_len, "Mutual CDC combined[1]/frame2");
+		ili_dump_data(frm_buf[2], 32, (len / 2 - 1), core_mp.xch_len, "Mutual CDC combined[2]/frame3");
 	} else {
-		ili_dump_data(frm_buf[0], 32, core_mp.frame_len, core_mp.xch_len, "Mutual CDC combined[0]/frame1");
+		ili_dump_data(frm_buf[0], 32, (len / 2 - 1), core_mp.xch_len, "Mutual CDC combined[0]/frame1");
 	}
 
 out:
@@ -2003,14 +2137,20 @@ out:
 
 static int allnode_mutual_cdc_data(int index)
 {
-	int i, ret = 0, len = 0, precmd_len = 0;
+	int i, ret = 0, len = 0, precmd_len = 0, cdc_len = 0;
 	int inDACp = 0, inDACn = 0;
 	u8 cmd[16] = {0};
 	u8 precmd[256] = {0};
 	u8 *ori = NULL;
 
+	if (tItems[index].catalog == TIPRING_RAW) {
+		cdc_len = core_mp.tipring_len;
+	} else {
+		cdc_len = core_mp.frame_len;
+	}
+
 	/* Multipling by 2 is due to the 16 bit in each node */
-	len = (core_mp.frame_len * 2) + 2;
+	len = (cdc_len * 2) + 2;
 
 	ILI_DBG("Read X/Y Channel length = %d\n", len);
 
@@ -2079,7 +2219,7 @@ static int allnode_mutual_cdc_data(int index)
 	}
 
 	/* Convert original data to the physical one in each node */
-	for (i = 0; i < core_mp.frame_len; i++) {
+	for (i = 0; i < cdc_len; i++) {
 		if (ipio_strcmp(tItems[index].desp, "calibration data(dac)") == 0) {
 			/* DAC - P */
 			if (((ori[(2 * i) + 1] & 0x80) >> 7) == 1) {
@@ -2115,7 +2255,7 @@ static int allnode_mutual_cdc_data(int index)
 		}
 	}
 
-	ili_dump_data(frame_buf, 32, core_mp.frame_len, core_mp.xch_len, "Mutual CDC combined");
+	ili_dump_data(frame_buf, 32, cdc_len, core_mp.xch_len, "Mutual CDC combined");
 
 out:
 	ipio_kfree((void **)&ori);
@@ -2125,33 +2265,42 @@ out:
 static void compare_MaxMin_result(int index, s32 *data)
 {
 	int x, y;
+	if (tItems[index].catalog == TIPRING_RAW || tItems[index].catalog == TIPRING_P2P) {
+		for (x = 0; x < core_mp.tipring_len; x++) {
+			if (tItems[index].max_buf[x] < data[x])
+				tItems[index].max_buf[x] = data[x];
 
-	for (y = 0; y < core_mp.ych_len; y++) {
-		for (x = 0; x < core_mp.xch_len; x++) {
-			int shift = y * core_mp.xch_len;
+			if (tItems[index].min_buf[x] > data[x])
+				tItems[index].min_buf[x] = data[x];
+		}
+	} else {
+		for (y = 0; y < core_mp.ych_len; y++) {
+			for (x = 0; x < core_mp.xch_len; x++) {
+				int shift = y * core_mp.xch_len;
 
-			if (tItems[index].catalog == UNTOUCH_P2P)
-				return;
-			else if (tItems[index].catalog == TX_RX_DELTA) {
-				/* Tx max/min comparison */
-				if (core_mp.tx_delta_buf[shift + x] < data[shift + x])
-					core_mp.tx_max_buf[shift + x] = data[shift + x];
+				if (tItems[index].catalog == UNTOUCH_P2P)
+					return;
+				else if (tItems[index].catalog == TX_RX_DELTA) {
+					/* Tx max/min comparison */
+					if (core_mp.tx_delta_buf[shift + x] < data[shift + x])
+						core_mp.tx_max_buf[shift + x] = data[shift + x];
 
-				if (core_mp.tx_delta_buf[shift + x] > data[shift + x])
-					core_mp.tx_min_buf[shift + x] = data[shift + x];
+					if (core_mp.tx_delta_buf[shift + x] > data[shift + x])
+						core_mp.tx_min_buf[shift + x] = data[shift + x];
 
-				/* Rx max/min comparison */
-				if (core_mp.rx_delta_buf[shift + x] < data[shift + x])
-					core_mp.rx_max_buf[shift + x] = data[shift + x];
+					/* Rx max/min comparison */
+					if (core_mp.rx_delta_buf[shift + x] < data[shift + x])
+						core_mp.rx_max_buf[shift + x] = data[shift + x];
 
-				if (core_mp.rx_delta_buf[shift + x] > data[shift + x])
-					core_mp.rx_min_buf[shift + x] = data[shift + x];
-			} else {
-				if (tItems[index].max_buf[shift + x] < data[shift + x])
-					tItems[index].max_buf[shift + x] = data[shift + x];
+					if (core_mp.rx_delta_buf[shift + x] > data[shift + x])
+						core_mp.rx_min_buf[shift + x] = data[shift + x];
+				} else {
+					if (tItems[index].max_buf[shift + x] < data[shift + x])
+						tItems[index].max_buf[shift + x] = data[shift + x];
 
-				if (tItems[index].min_buf[shift + x] > data[shift + x])
-					tItems[index].min_buf[shift + x] = data[shift + x];
+					if (tItems[index].min_buf[shift + x] > data[shift + x])
+						tItems[index].min_buf[shift + x] = data[shift + x];
+				}
 			}
 		}
 	}
@@ -2312,6 +2461,23 @@ static int create_mp_test_frame_buffer(int index, int frame_count)
 	return 0;
 }
 
+static void parser_tip_ring_ini_benchmark(s32 *max_ptr, s32 *min_ptr, u8 type, const char *desp) 
+{
+	char benchmark_str[128] = {0};
+
+	snprintf(benchmark_str, sizeof(benchmark_str), "%s%d", BENCHMARK_KEY_NAME, 1);
+	parser_ini_benchmark(max_ptr, min_ptr, type, desp, core_mp.nPxRaw_tipring_len, benchmark_str);
+
+	memset(benchmark_str, 0x0, sizeof(benchmark_str));
+	snprintf(benchmark_str, sizeof(benchmark_str), "%s%d", BENCHMARK_KEY_NAME, 2);
+
+	parser_ini_benchmark(max_ptr + core_mp.nPxRaw_tipring_len, min_ptr + core_mp.nPxRaw_tipring_len,
+				type, desp, core_mp.nPyRaw_tipring_len, benchmark_str);
+
+	ili_dump_data(max_ptr, 32, core_mp.tipring_len, 0, "Dump Tip Ring Benchmark Max");
+	ili_dump_data(min_ptr, 32, core_mp.tipring_len, 0, "Dump Tip Ring Benchmark Min");
+}
+
 static int mutual_test(int index)
 {
 	int i = 0, j = 0, x = 0, y = 0, ret = 0, get_frame_cont = 1;
@@ -2334,29 +2500,44 @@ static int mutual_test(int index)
 		goto out;
 	}
 
-	/* Init Max/Min buffer */
-	for (y = 0; y < core_mp.ych_len; y++) {
-		for (x = 0; x < core_mp.xch_len; x++) {
-			if (tItems[i].catalog == TX_RX_DELTA) {
-				core_mp.tx_max_buf[y * core_mp.xch_len + x] = INT_MIN;
-				core_mp.rx_max_buf[y * core_mp.xch_len + x] = INT_MIN;
-				core_mp.tx_min_buf[y * core_mp.xch_len + x] = INT_MAX;
-				core_mp.rx_min_buf[y * core_mp.xch_len + x] = INT_MAX;
-			} else {
-				tItems[index].max_buf[y * core_mp.xch_len + x] = INT_MIN;
-				tItems[index].min_buf[y * core_mp.xch_len + x] = INT_MAX;
+	if (tItems[index].catalog == TIPRING_RAW) {
+		/* Init Max/Min buffer */
+		for (x = 0; x < core_mp.tipring_len; x++) {
+			tItems[index].max_buf[x] = INT_MIN;
+			tItems[index].min_buf[x] = INT_MAX;
+		}
+
+		get_frame_cont = tItems[index].frame_count;
+
+		if (tItems[index].spec_option == BENCHMARK) {
+			parser_tip_ring_ini_benchmark(tItems[index].bench_mark_max, tItems[index].bench_mark_min,
+				tItems[index].type_option, tItems[index].desp);
+		}
+	} else {
+		/* Init Max/Min buffer */
+		for (y = 0; y < core_mp.ych_len; y++) {
+			for (x = 0; x < core_mp.xch_len; x++) {
+				if (tItems[i].catalog == TX_RX_DELTA) {
+					core_mp.tx_max_buf[y * core_mp.xch_len + x] = INT_MIN;
+					core_mp.rx_max_buf[y * core_mp.xch_len + x] = INT_MIN;
+					core_mp.tx_min_buf[y * core_mp.xch_len + x] = INT_MAX;
+					core_mp.rx_min_buf[y * core_mp.xch_len + x] = INT_MAX;
+				} else {
+					tItems[index].max_buf[y * core_mp.xch_len + x] = INT_MIN;
+					tItems[index].min_buf[y * core_mp.xch_len + x] = INT_MAX;
+				}
 			}
+		}
+
+		if (tItems[index].spec_option == BENCHMARK) {
+			parser_ini_benchmark(tItems[index].bench_mark_max, tItems[index].bench_mark_min,
+				tItems[index].type_option, tItems[index].desp, core_mp.frame_len, BENCHMARK_KEY_NAME);
+			dump_benchmark_data(tItems[index].bench_mark_max, tItems[index].bench_mark_min);
 		}
 	}
 
 	if (tItems[index].catalog != PEAK_TO_PEAK_TEST)
 		get_frame_cont = tItems[index].frame_count;
-
-	if (tItems[index].spec_option == BENCHMARK) {
-		parser_ini_benchmark(tItems[index].bench_mark_max, tItems[index].bench_mark_min,
-			tItems[index].type_option, tItems[index].desp, core_mp.frame_len, BENCHMARK_KEY_NAME);
-		dump_benchmark_data(tItems[index].bench_mark_max, tItems[index].bench_mark_min);
-	}
 
 	for (i = 0; i < get_frame_cont; i++) {
 		ret = allnode_mutual_cdc_data(index);
@@ -2384,12 +2565,20 @@ static int mutual_test(int index)
 				goto out;
 			}
 			break;
+		case TIPRING_RAW:
+			for (j = 0; j < core_mp.tipring_len; j++)
+				tItems[index].buf[i * core_mp.tipring_len + j] = frame_buf[j];
+			break;
 		default:
 			for (j = 0; j < core_mp.frame_len; j++)
 				tItems[index].buf[i * core_mp.frame_len + j] = frame_buf[j];
 			break;
 		}
-		compare_MaxMin_result(index, &tItems[index].buf[i * core_mp.frame_len]);
+
+		if (tItems[index].catalog == TIPRING_RAW)
+			compare_MaxMin_result(index, &tItems[index].buf[i * core_mp.tipring_len]);
+		else
+			compare_MaxMin_result(index, &tItems[index].buf[i * core_mp.frame_len]);
 	}
 
 out:
@@ -2398,11 +2587,16 @@ out:
 
 static int peak_to_peak_test(int index)
 {
-	int i = 0, j = 0, x = 0, y = 0, ret = 0;
+	int i = 0, j = 0, x = 0, y = 0, ret = 0, cdc_len = 0;
 	char benchmark_str[128] = {0};
 
-	ILI_DBG("index = %d, desp = %s bch_mrk_frm_num = %d\n"
-		, index, tItems[index].desp, tItems[index].bch_mrk_frm_num);
+	if (tItems[index].catalog == TIPRING_P2P)
+		cdc_len = core_mp.tipring_len;
+	else
+		cdc_len = core_mp.frame_len;
+
+	ILI_DBG("index = %d, desp = %s bch_mrk_frm_num = %d, cdc len = %d\n"
+		, index, tItems[index].desp, tItems[index].bch_mrk_frm_num, cdc_len);
 
 	ret = create_mp_test_frame_buffer(index, tItems[index].bch_mrk_frm_num);
 	if (ret < 0) {
@@ -2411,15 +2605,37 @@ static int peak_to_peak_test(int index)
 	}
 
 	if (tItems[index].spec_option == BENCHMARK) {
-		for (i = 0; i < tItems[index].bch_mrk_frm_num; i++) {
-			if (tItems[index].bch_mrk_multi)
-				snprintf(benchmark_str, sizeof(benchmark_str), "%s%d", BENCHMARK_KEY_NAME, i+1);
-			else
-				snprintf(benchmark_str, sizeof(benchmark_str), "%s", BENCHMARK_KEY_NAME);
-			parser_ini_benchmark(tItems[index].bch_mrk_max[i], tItems[index].bch_mrk_min[i],
-				tItems[index].type_option, tItems[index].desp, core_mp.frame_len, benchmark_str);
+		if (tItems[index].catalog == TIPRING_P2P) {
+			for (i = 0; i < tItems[index].bch_mrk_frm_num; i++) {
+				if (tItems[index].bch_mrk_multi){
+					parser_ini_benchmark(tItems[index].bch_mrk_max[i], tItems[index].bch_mrk_min[i], tItems[index].type_option,
+						tItems[index].desp, core_mp.nPxRaw_tipring_len, get_csv_frame_name(BENCHMARK_KEY_NAME, i + 1));
 
-			dump_benchmark_data(tItems[index].bch_mrk_max[i], tItems[index].bch_mrk_min[i]);
+					parser_ini_benchmark(tItems[index].bch_mrk_max[i] + core_mp.nPxRaw_tipring_len,
+						tItems[index].bch_mrk_min[i] + core_mp.nPxRaw_tipring_len, tItems[index].type_option, tItems[index].desp,
+						core_mp.nPyRaw_tipring_len, get_csv_frame_name(BENCHMARK_KEY_NAME, i + 4));
+				} else {
+					parser_ini_benchmark(tItems[index].bch_mrk_max[i], tItems[index].bch_mrk_min[i], tItems[index].type_option,
+						tItems[index].desp, core_mp.nPxRaw_tipring_len, get_csv_frame_name(BENCHMARK_KEY_NAME, 1));
+
+					parser_ini_benchmark(tItems[index].bch_mrk_max[i] + core_mp.nPxRaw_tipring_len,
+						tItems[index].bch_mrk_min[i] + core_mp.nPxRaw_tipring_len, tItems[index].type_option,
+						tItems[index].desp, core_mp.nPyRaw_tipring_len, get_csv_frame_name(BENCHMARK_KEY_NAME, 2));
+				}
+
+			}
+		} else {
+			for (i = 0; i < tItems[index].bch_mrk_frm_num; i++) {
+				if (tItems[index].bch_mrk_multi)
+					snprintf(benchmark_str, sizeof(benchmark_str), "%s%d", BENCHMARK_KEY_NAME, i+1);
+				else
+					snprintf(benchmark_str, sizeof(benchmark_str), "%s", BENCHMARK_KEY_NAME);
+
+				parser_ini_benchmark(tItems[index].bch_mrk_max[i], tItems[index].bch_mrk_min[i],
+						tItems[index].type_option, tItems[index].desp, core_mp.frame_len, benchmark_str);
+
+				dump_benchmark_data(tItems[index].bch_mrk_max[i], tItems[index].bch_mrk_min[i]);
+			}
 		}
 	}
 
@@ -2437,10 +2653,10 @@ static int peak_to_peak_test(int index)
 		goto out;
 	}
 	for (i = 0; i < tItems[index].bch_mrk_frm_num; i++) {
-		for (j = 0; j < core_mp.frame_len; j++)
-			tItems[index].buf[i * core_mp.frame_len + j] = frm_buf[i][j];
+		for (j = 0; j < cdc_len; j++)
+			tItems[index].buf[i * cdc_len + j] = frm_buf[i][j];
 
-		compare_MaxMin_result(index, &tItems[index].buf[i * core_mp.frame_len]);
+		compare_MaxMin_result(index, &tItems[index].buf[i * cdc_len]);
 	}
 out:
 	return ret;
@@ -3006,7 +3222,13 @@ static int mp_test_data_sort_average(s32 *oringin_data, int index, s32 *avg_resu
 
 static void mp_compare_cdc_result(int index, s32 *tmp, s32 *max_ts, s32 *min_ts, int *result)
 {
-	int i;
+	int i, cdclen;
+	int x, y, shift;
+
+	if (tItems[index].catalog == TIPRING_RAW || tItems[index].catalog == TIPRING_P2P)
+		cdclen = core_mp.tipring_len;
+	else
+		cdclen = core_mp.frame_len;
 
 	if (ERR_ALLOC_MEM(tmp)) {
 		ILI_ERR("The data of test item is null (%p)\n", tmp);
@@ -3021,8 +3243,24 @@ static void mp_compare_cdc_result(int index, s32 *tmp, s32 *max_ts, s32 *min_ts,
 				return;
 			}
 		}
+	} else if (tItems[index].catalog == TIPRING_RAW || tItems[index].catalog == TIPRING_P2P) {
+		for (i = 0; i < cdclen; i++) {
+			if (i < core_mp.nPxRaw_tipring_len) {
+				shift = i;
+			} else {
+				x = (i - core_mp.nPxRaw_tipring_len) % (2 * core_mp.nPyRaw);
+				y = (i - core_mp.nPxRaw_tipring_len) / (2 * core_mp.nPyRaw);
+				shift = core_mp.nPxRaw_tipring_len + x * core_mp.ych_len + y;
+			}
+
+			if (tmp[shift] > max_ts[i] || tmp[shift] < min_ts[i]) {
+				ILI_DBG("Fail No.%d: max=%d, val=%d, min=%d\n", i, max_ts[i], tmp[shift], min_ts[i]);
+				*result = MP_DATA_FAIL;
+				return;
+			}
+		}
 	} else {
-		for (i = 0; i < core_mp.frame_len; i++) {
+		for (i = 0; i < cdclen; i++) {
 			if (tmp[i] > max_ts[i] || tmp[i] < min_ts[i]) {
 				ILI_DBG("Fail No.%d: max=%d, val=%d, min=%d\n", i, max_ts[i], tmp[i], min_ts[i]);
 				*result = MP_DATA_FAIL;
@@ -3034,7 +3272,7 @@ static void mp_compare_cdc_result(int index, s32 *tmp, s32 *max_ts, s32 *min_ts,
 
 static int mp_compare_test_result(int index)
 {
-	int i, test_result = MP_DATA_PASS;
+	int i, test_result = MP_DATA_PASS, cdclen;
 	s32 *max_threshold = NULL, *min_threshold = NULL;
 
 	if (tItems[index].catalog == PIN_TEST)
@@ -3053,6 +3291,11 @@ static int mp_compare_test_result(int index)
 		test_result = MP_DATA_FAIL;
 		goto out;
 	}
+
+	if (tItems[index].catalog == TIPRING_RAW || tItems[index].catalog == TIPRING_P2P)
+		cdclen = core_mp.tipring_len;
+	else
+		cdclen = core_mp.frame_len;
 
 	/* Show test result as below */
 	if (tItems[index].catalog == TX_RX_DELTA) {
@@ -3085,21 +3328,32 @@ static int mp_compare_test_result(int index)
 		}
 
 		if (tItems[index].spec_option == BENCHMARK) {
-			if (tItems[index].catalog == PEAK_TO_PEAK_TEST) {
-				for (i = 0; i < core_mp.frame_len; i++) {
+			if (tItems[index].catalog == PEAK_TO_PEAK_TEST || tItems[index].catalog == TIPRING_P2P) {
+				for (i = 0; i < cdclen; i++) {
 					max_threshold[i] = tItems[index].bch_mrk_max[0][i];
 					min_threshold[i] = tItems[index].bch_mrk_min[0][i];
 				}
 			} else {
-				for (i = 0; i < core_mp.frame_len; i++) {
+				for (i = 0; i < cdclen; i++) {
 					max_threshold[i] = tItems[index].bench_mark_max[i];
 					min_threshold[i] = tItems[index].bench_mark_min[i];
 				}
 			}
 		} else {
-			for (i = 0; i < core_mp.frame_len; i++) {
-				max_threshold[i] = tItems[index].max;
-				min_threshold[i] = tItems[index].min;
+			if (tItems[index].catalog == TIPRING_RAW || tItems[index].catalog == TIPRING_P2P) {
+				for (i = 0; i < core_mp.nPxRaw_tipring_len; i++) {
+					max_threshold[i] = tItems[index].max1;
+					min_threshold[i] = tItems[index].min1;
+				}
+				for (i = core_mp.nPxRaw_tipring_len; i < core_mp.tipring_len; i++) {
+					max_threshold[i] = tItems[index].max2;
+					min_threshold[i] = tItems[index].min2;
+				}
+			} else {
+				for (i = 0; i < cdclen; i++) {
+					max_threshold[i] = tItems[index].max;
+					min_threshold[i] = tItems[index].min;
+				}
 			}
 		}
 
@@ -3231,6 +3485,34 @@ static int mp_show_result()
 					snprintf(bench_name, (CSV_FILE_SIZE - csv_len), "Min_Bench%d", (j+1));
 					mp_compare_cdc_show_result(i, tItems[i].bch_mrk_min[j], csv, &csv_len, TYPE_BENCHMARK, max_threshold, min_threshold, bench_name, CSV_FILE_SIZE);
 				}
+			} else if (tItems[i].catalog == TIPRING_RAW) {
+				for (j = 0; j < core_mp.tipring_len; j++) {
+					max_threshold[j] = tItems[i].bench_mark_max[j];
+					min_threshold[j] = tItems[i].bench_mark_min[j];
+				}
+				mp_compare_tip_ring_cdc_show_result(i, tItems[i].bench_mark_max, csv, &csv_len, TYPE_BENCHMARK, max_threshold, min_threshold, "Max_Bench1", CSV_FILE_SIZE, TIPRING_X);
+				mp_compare_tip_ring_cdc_show_result(i, tItems[i].bench_mark_min, csv, &csv_len, TYPE_BENCHMARK, max_threshold, min_threshold, "Min_Bench1", CSV_FILE_SIZE, TIPRING_X);
+				mp_compare_tip_ring_cdc_show_result(i, tItems[i].bench_mark_max, csv, &csv_len, TYPE_BENCHMARK, max_threshold, min_threshold, "Max_Bench2", CSV_FILE_SIZE, TIPRING_Y);
+				mp_compare_tip_ring_cdc_show_result(i, tItems[i].bench_mark_min, csv, &csv_len, TYPE_BENCHMARK, max_threshold, min_threshold, "Min_Bench2", CSV_FILE_SIZE, TIPRING_Y);
+			} else if (tItems[i].catalog == TIPRING_P2P) {
+				for (j = 0; j < core_mp.frame_len; j++) {
+					max_threshold[j] = tItems[i].bch_mrk_max[0][j];
+					min_threshold[j] = tItems[i].bch_mrk_min[0][j];
+				}
+
+				for (j = 0; j < tItems[i].bch_mrk_frm_num; j++) {
+					mp_compare_tip_ring_cdc_show_result(i, tItems[i].bch_mrk_max[j], csv, &csv_len, TYPE_BENCHMARK,
+							max_threshold, min_threshold, get_csv_frame_name("Max_Bench", j + 1), CSV_FILE_SIZE, TIPRING_X);
+					mp_compare_tip_ring_cdc_show_result(i, tItems[i].bch_mrk_min[j], csv, &csv_len, TYPE_BENCHMARK,
+							max_threshold, min_threshold, get_csv_frame_name("Min_Bench", j + 1), CSV_FILE_SIZE, TIPRING_X);
+				}
+
+				for (j = 0; j < tItems[i].bch_mrk_frm_num; j++) {
+					mp_compare_tip_ring_cdc_show_result(i, tItems[i].bch_mrk_max[j], csv, &csv_len, TYPE_BENCHMARK,
+							max_threshold, min_threshold, get_csv_frame_name("Max_Bench", tItems[i].bch_mrk_frm_num + j + 1), CSV_FILE_SIZE, TIPRING_Y);
+					mp_compare_tip_ring_cdc_show_result(i, tItems[i].bch_mrk_min[j], csv, &csv_len, TYPE_BENCHMARK,
+							max_threshold, min_threshold, get_csv_frame_name("Min_Bench", tItems[i].bch_mrk_frm_num + j + 1), CSV_FILE_SIZE, TIPRING_Y);
+				}
 			} else {
 				for (j = 0; j < core_mp.frame_len; j++) {
 					max_threshold[j] = tItems[i].bench_mark_max[j];
@@ -3240,16 +3522,39 @@ static int mp_show_result()
 				mp_compare_cdc_show_result(i, tItems[i].bench_mark_min, csv, &csv_len, TYPE_BENCHMARK, max_threshold, min_threshold, "Min_Bench", CSV_FILE_SIZE);
 			}
 		} else {
-			for (j = 0; j < core_mp.frame_len; j++) {
-				max_threshold[j] = tItems[i].max;
-				min_threshold[j] = tItems[i].min;
-			}
+			if (tItems[i].catalog == TIPRING_RAW || tItems[i].catalog == TIPRING_P2P) {
+				for (j = 0; j < core_mp.nPxRaw_tipring_len; j++) {
+					max_threshold[j] = tItems[i].max1;
+					min_threshold[j] = tItems[i].min1;
+				}
+				for (j = core_mp.nPxRaw_tipring_len; j < core_mp.tipring_len; j++) {
+					max_threshold[j] = tItems[i].max2;
+					min_threshold[j] = tItems[i].min2;
+				}
 
-			ILI_INFO("Max = %d\n", tItems[i].max);
-			csv_len += snprintf(csv + csv_len, (CSV_FILE_SIZE - csv_len), "Max = %d\n", tItems[i].max);
+				ILI_INFO("Max1 = %d\n", tItems[i].max1);
+				csv_len += snprintf(csv + csv_len, (CSV_FILE_SIZE - csv_len), "Max1 = %d\n", tItems[i].max1);
 
-			ILI_INFO("Min = %d\n", tItems[i].min);
-			csv_len += snprintf(csv + csv_len, (CSV_FILE_SIZE - csv_len), "Min = %d\n", tItems[i].min);
+				ILI_INFO("Max2 = %d\n", tItems[i].max2);
+				csv_len += snprintf(csv + csv_len, (CSV_FILE_SIZE - csv_len), "Max2 = %d\n", tItems[i].max2);
+
+				ILI_INFO("Min1 = %d\n", tItems[i].min1);
+				csv_len += snprintf(csv + csv_len, (CSV_FILE_SIZE - csv_len), "Min1 = %d\n", tItems[i].min1);
+
+				ILI_INFO("Min2 = %d\n", tItems[i].min2);
+				csv_len += snprintf(csv + csv_len, (CSV_FILE_SIZE - csv_len), "Min2 = %d\n", tItems[i].min2);
+			} else {
+				for (j = 0; j < core_mp.frame_len; j++) {
+					max_threshold[j] = tItems[i].max;
+					min_threshold[j] = tItems[i].min;
+				}
+
+				ILI_INFO("Max = %d\n", tItems[i].max);
+				csv_len += snprintf(csv + csv_len, (CSV_FILE_SIZE - csv_len), "Max = %d\n", tItems[i].max);
+
+				ILI_INFO("Min = %d\n", tItems[i].min);
+				csv_len += snprintf(csv + csv_len, (CSV_FILE_SIZE - csv_len), "Min = %d\n", tItems[i].min);
+                        }
 		}
 
 		if (ipio_strcmp(tItems[i].desp, "open test(integration)_sp") == 0) {
@@ -3318,6 +3623,21 @@ static int mp_show_result()
 			}
 			mp_compare_cdc_show_result(i, core_mp.rx_max_buf, csv, &csv_len, TYPE_JUGE, max_threshold, min_threshold, "RX Max Hold", CSV_FILE_SIZE);
 			mp_compare_cdc_show_result(i, core_mp.rx_min_buf, csv, &csv_len, TYPE_JUGE, max_threshold, min_threshold, "RX Min Hold", CSV_FILE_SIZE);
+		} else if (tItems[i].catalog == TIPRING_RAW || tItems[i].catalog == TIPRING_P2P) {
+			if (tItems[i].catalog == TIPRING_RAW)
+				get_frame_cont = tItems[i].frame_count;
+
+			if (tItems[i].catalog == TIPRING_P2P)
+				get_frame_cont = tItems[i].bch_mrk_frm_num;
+
+			for (j = 0; j < get_frame_cont; j++) {
+				mp_compare_tip_ring_cdc_show_result(i,&tItems[i].buf[(j * core_mp.tipring_len)], csv, &csv_len, TYPE_JUGE,
+						max_threshold, min_threshold, get_csv_frame_name("Frame ", j + 1), CSV_FILE_SIZE, TIPRING_X);
+			}
+			for (j = 0; j < get_frame_cont; j++) {
+				mp_compare_tip_ring_cdc_show_result(i,&tItems[i].buf[(j * core_mp.tipring_len)], csv, &csv_len, TYPE_JUGE,
+						max_threshold, min_threshold, get_csv_frame_name("Frame ", get_frame_cont + j + 1), CSV_FILE_SIZE, TIPRING_Y);
+			}
 		} else {
 			/* general result */
 			if (tItems[i].trimmed_mean && tItems[i].catalog != PEAK_TO_PEAK_TEST) {
@@ -3416,6 +3736,19 @@ void ili_mp_init_item(void)
 	core_mp.ych_len = ilitsmp->tp_info->ych_num;
 	core_mp.frame_len = core_mp.xch_len * core_mp.ych_len;
 
+	if (ilits.PenType == POSITION_PEN_TYPE_ON) {
+		if (ilits.pen_info_block.nPenX_MP == 0xFF || ilits.pen_info_block.nPenX_MP == 0)
+			core_mp.nPenX_MP_Len = core_mp.xch_len;
+		else
+			core_mp.nPenX_MP_Len = ilits.pen_info_block.nPenX_MP;
+
+		core_mp.nPxRaw = ilits.pen_info_block.nPxRaw;
+		core_mp.nPyRaw = ilits.pen_info_block.nPyRaw;
+		core_mp.nPxRaw_tipring_len = 2 * core_mp.nPxRaw * core_mp.nPenX_MP_Len;
+		core_mp.nPyRaw_tipring_len = 2 * core_mp.nPyRaw * core_mp.ych_len;
+		core_mp.tipring_len = core_mp.nPxRaw_tipring_len + core_mp.nPyRaw_tipring_len;
+	}
+
 	core_mp.stx_len = 0;
 	core_mp.srx_len = 0;
 	core_mp.key_len = 0;
@@ -3426,6 +3759,7 @@ void ili_mp_init_item(void)
 	core_mp.td_retry = false;
 	core_mp.final_result = MP_DATA_FAIL;
 	core_mp.lost_benchmark = false;
+	core_mp.lost_parameter = false;
     core_mp.pre_cmd_sp = false;
 
 	ILI_INFO("============== TP & Panel info ================\n");
@@ -3437,6 +3771,11 @@ void ili_mp_init_item(void)
 	ILI_INFO("Read CDC Length = %d\n", core_mp.cdc_len);
 	ILI_INFO("X length = %d, Y length = %d\n", core_mp.xch_len, core_mp.ych_len);
 	ILI_INFO("Frame length = %d\n", core_mp.frame_len);
+	if (ilits.PenType == POSITION_PEN_TYPE_ON) {
+		ILI_INFO("nPxRaw = %d,nPyRaw = %d\n", core_mp.nPxRaw, core_mp.nPyRaw);
+		ILI_INFO("Tip Ring length = %d, nPxRaw buffer length = %d, nPyRaw buffer length = %d\n"
+			, core_mp.tipring_len, core_mp.nPxRaw_tipring_len, core_mp.nPyRaw_tipring_len);
+	}
 	ILI_INFO("===============================================\n");
 
 	for (i = 0; i < MP_TEST_ITEM; i++) {
@@ -3444,9 +3783,13 @@ void ili_mp_init_item(void)
 		tItems[i].type_option = 0;
 		tItems[i].run = false;
 		tItems[i].max = 0;
+		tItems[i].max1 = 0;
+		tItems[i].max2 = 0;
 		tItems[i].max_res = MP_DATA_FAIL;
 		tItems[i].item_result = MP_DATA_PASS;
 		tItems[i].min = 0;
+		tItems[i].min1 = 0;
+		tItems[i].min2 = 0;
 		tItems[i].min_res = MP_DATA_FAIL;
 		tItems[i].frame_count = 0;
 		tItems[i].trimmed_mean = 0;
@@ -3502,6 +3845,10 @@ void ili_mp_init_item(void)
 			tItems[i].do_test = peak_to_peak_test;
 		} else if (tItems[i].catalog == SHORT_TEST) {
 			tItems[i].do_test = mutual_test;
+		} else if (tItems[i].catalog == TIPRING_RAW) {
+			tItems[i].do_test = mutual_test;
+		} else if (tItems[i].catalog == TIPRING_P2P) {
+			tItems[i].do_test = peak_to_peak_test;
 		}
 
 		tItems[i].result = (char *) kmalloc(16, GFP_KERNEL);
@@ -3639,6 +3986,16 @@ static void mp_test_run(int index)
 		tItems[i].min = ili_katoi(str);
 	}
 
+	if (tItems[i].catalog == TIPRING_RAW || tItems[i].catalog == TIPRING_P2P) {
+		parser_get_int_data(tItems[i].desp, "max1", str, sizeof(str));
+		tItems[i].max1 = ili_katoi(str);
+		parser_get_int_data(tItems[i].desp, "max2", str, sizeof(str));
+		tItems[i].max2 = ili_katoi(str);
+		parser_get_int_data(tItems[i].desp, "min1", str, sizeof(str));
+		tItems[i].min1 = ili_katoi(str);
+		parser_get_int_data(tItems[i].desp, "min2", str, sizeof(str));
+		tItems[i].min2 = ili_katoi(str);
+	}
 
 	/* Get pin test delay time */
 	if (tItems[i].catalog == PEAK_TO_PEAK_TEST) {
@@ -3657,11 +4014,20 @@ static void mp_test_run(int index)
 		}
 	}
 
+	if (tItems[i].catalog == TIPRING_P2P && tItems[i].max_min_mode == 1) {
+		tItems[i].bch_mrk_frm_num = 3;
+		tItems[i].bch_mrk_multi = true;
+		ILI_DBG("set bch_mrk_frm_num = %d\n", tItems[i].bch_mrk_frm_num);
+	}
+
 	ILI_DBG("%s: run = %d, max = %d, min = %d, frame_count = %d\n", tItems[i].desp,
 			tItems[i].run, tItems[i].max, tItems[i].min, tItems[i].frame_count);
 
 	ILI_DBG("v_tdf_1 = %d, v_tdf_2 = %d, h_tdf_1 = %d, h_tdf_2 = %d\n", tItems[i].v_tdf_1,
 			tItems[i].v_tdf_2, tItems[i].h_tdf_1, tItems[i].h_tdf_2);
+
+	if (tItems[i].catalog == TIPRING_RAW || tItems[i].catalog == TIPRING_P2P)
+		ILI_DBG("max1 = %d, max2 = %d, min1 = %d, min2 = %d\n", tItems[i].max1, tItems[i].max2, tItems[i].min1, tItems[i].min2);
 
 	ILI_INFO("Run MP Test Item : %s\n", tItems[i].desp);
 	tItems[i].do_test(i);
