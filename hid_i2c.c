@@ -60,17 +60,72 @@ int open_hid_node(void)
     }
     /* Open the Device with non-blocking reads. In real life,
            don't use a hard coded path; use libudev instead. */
-    // ilits.fd_hidraw = open(HID_RAW_NODE, O_RDWR | O_NONBLOCK);
-    ilits.fd_hidraw = open(HID_RAW_NODE, O_RDWR);
+    // ilits.fd_hidraw = open(HID_RAW_NODE, O_RDWR);
+    ilits.fd_hidraw = open((char *) ilits.hidtestnode, O_RDWR);
 
+    ILI_INFO("hid node = %s\n", ilits.hidtestnode);
     if (ilits.fd_hidraw <= 0)
     {
         printf("can't open %s, fd: %d, err: %d\n",
-               HID_RAW_NODE, ilits.fd_hidraw, errno);
+               ilits.hidtestnode, ilits.fd_hidraw, errno);
         return RET_FAIL_NO;
     }
 
     return 0;
+}
+
+
+int open_hidraw_device(void)
+{
+	struct hidraw_devinfo dev_info;
+	DIR *dir = NULL;
+	struct dirent *ptr;
+	int hidraw_id;
+
+	dir = opendir("/dev");
+	if (!dir) {
+		ILI_ERR("can't open \"/dev\" directory\n");
+		return -ENOENT;
+	}
+
+	while ((ptr = readdir(dir))) {
+		/* filter out non-character device */
+		if (ptr->d_type != DT_CHR ||
+		    strncmp(ptr->d_name, "hidraw", 6))
+			continue;
+
+		sscanf(ptr->d_name, "hidraw%d", &hidraw_id);
+		memset(ilits.hidnode, 0, sizeof(ilits.hidnode));
+		snprintf(ilits.hidnode, sizeof(ilits.hidnode), "/dev/%s", ptr->d_name);
+
+		ilits.fd_hidraw = open(ilits.hidnode, O_RDWR | O_NONBLOCK);
+		if (ilits.fd_hidraw < 0) {
+			ILI_ERR("can't open %s, fd: %d, err: %d\n",
+				ilits.hidnode, ilits.fd_hidraw, errno);
+			continue;
+		}
+
+        ioctl(ilits.fd_hidraw, HIDIOCGRAWINFO, &dev_info);
+		if (dev_info.vendor != ILITEK_VENDOR_ID) {
+			ILI_DBG("%s is invalid vendor id: %x, should be %x\n",
+				ilits.hidnode, dev_info.vendor, ILITEK_VENDOR_ID);
+			goto err_continue;
+		}
+
+        closedir(dir);
+        ILI_DBG("open %s successfully!!\n", ilits.hidnode);
+		return 0;
+
+err_continue:
+		close(ilits.fd_hidraw);
+		ilits.fd_hidraw = -1;
+	}
+
+	closedir(dir);
+
+	printf("No Ilitek hidraw file node found!\n");
+
+	return -ENODEV;
 }
 
 void close_hid_node(void)
@@ -93,6 +148,9 @@ void init_hid(void)
     strcpy((char *) ilits.fw_path, DEF_FW_FILP_PATH);
     strcpy((char *) ilits.save_path, DEF_MP_LCM_ON_PATH);
     strcpy((char *) ilits.ini_path, DEF_INI_FILP_PATH);
+
+    ilits.flash_bl_key_en = DISABLE;
+    ilits.flash_bl_en = DISABLE;
 }
 
 void check_hidraw_info(void)
@@ -229,13 +287,13 @@ int ili_i2c_wrapper(u8 *txbuf, u32 wlen, u8 *rxbuf, u32 rlen)
 		    rlen += 4;
 		}
 	}
-    wlen += index;
 
     switch (operate)
     {
     case RW_SYNC:
     case W_ONLY:
         ipio_memcpy(&wdata[index], txbuf, wlen, wlen);
+        wlen += index;
         ili_dump_data(wdata, 8, wlen, 256, "wdata:");
         ret = ioctl(ilits.fd_hidraw, HIDIOCSFEATURE(wlen), wdata);
         if (ret < 0)

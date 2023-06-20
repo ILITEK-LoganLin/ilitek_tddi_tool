@@ -232,7 +232,7 @@ static inline int ipio_strcmp(const char *s1, const char *s2){
 }
 
 static inline int ili_str2hex(char *str) {
-	int strlen, result, intermed, intermedtop;
+	int strlen, result;
 	char *s = str;
 
 	while (*s != 0x0) {
@@ -255,6 +255,7 @@ static inline int ili_str2hex(char *str) {
 	strlen = strlen - 3;
 	result = 0;
 	while (*s != 0x0) {
+		int intermedtop, intermed;
 		intermed = *s & 0x0f;
 		intermedtop = *s & 0xf0;
 		if (intermedtop == 0x60 || intermedtop == 0x40) {
@@ -270,7 +271,6 @@ static inline int ili_str2hex(char *str) {
 
 static inline int ili_katoi(char *str) {
 	int result = 0;
-	unsigned int digit;
 	int sign;
 
 	if (*str == '-') {
@@ -284,6 +284,7 @@ static inline int ili_katoi(char *str) {
 	}
 
 	for (;; str += 1) {
+		unsigned int digit;
 		digit = *str - '0';
 		if (digit > 9)
 			break;

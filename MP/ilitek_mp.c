@@ -379,6 +379,9 @@ static char seq_item[MAX_SECTION_NUM][PARSER_MAX_KEY_NAME_LEN] = {{0}};
 extern struct _JNI_DATA Jni;
 extern struct core_fr_data *core_fr;
 
+
+char extra_buff[R_BUFF_SIZE];
+
 static int isspace_t(int x)
 {
 	if (x == ' ' || x == '\t' || x == '\n' ||
@@ -393,11 +396,14 @@ static void dump_benchmark_data(s32 *max_ptr, s32 *min_ptr)
 	int i;
 	char dump_log[R_BUFF_SIZE] = {0};
 
+	memset(extra_buff, 0, sizeof(extra_buff));
 	if (debug_log_en) {
 		ILI_INFO("Dump Benchmark Max\n");
 
 		for (i = 0; i < core_mp.frame_len; i++) {
-			sprintf(dump_log, "%s%d, ",dump_log, max_ptr[i]);
+			sprintf(extra_buff, "%s%d, ",dump_log, max_ptr[i]);
+			strcpy(dump_log, extra_buff);
+			memset(extra_buff, 0, sizeof(extra_buff));
 			if (i % core_mp.xch_len == core_mp.xch_len - 1)
 			{
 				ILI_INFO("%s\n",dump_log);
@@ -409,7 +415,9 @@ static void dump_benchmark_data(s32 *max_ptr, s32 *min_ptr)
 		memset(dump_log, '\0', sizeof(dump_log));
 
 		for (i = 0; i < core_mp.frame_len; i++) {
-			sprintf(dump_log, "%s%d, ",dump_log, min_ptr[i]);
+			sprintf(extra_buff, "%s%d, ",dump_log, min_ptr[i]);
+			strcpy(dump_log, extra_buff);
+			memset(extra_buff, 0, sizeof(extra_buff));
 			if (i % core_mp.xch_len == core_mp.xch_len - 1)
 			{
 				ILI_INFO("%s\n",dump_log);
@@ -425,9 +433,12 @@ static void dump_node_type_buffer(s32 *node_ptr, char *name)
 	char dump_log[R_BUFF_SIZE] = {0};
 
 	if (debug_log_en) {
+		memset(extra_buff, 0, sizeof(extra_buff));
 		ILI_INFO("Dump NodeType, %s\n", name);
 		for (i = 0; i < core_mp.frame_len; i++) {
-			sprintf(dump_log, "%s%d, ",dump_log, node_ptr[i]);
+			sprintf(extra_buff, "%s%d, ",dump_log, node_ptr[i]);
+			strcpy(dump_log, extra_buff);
+			memset(extra_buff, 0, sizeof(extra_buff));
 
 			if (i % core_mp.xch_len == core_mp.xch_len-1)
 			{
@@ -1319,7 +1330,9 @@ static void mp_compare_cdc_show_result(int index, s32 *tmp, char *csv,
 		    sprintf(dump_log,"%s", desp);
 			tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "\n	   %s ,", desp);
 		}
-		sprintf(dump_log, "%s   X_%d  ,", dump_log, (x+1));
+		memset(extra_buff, 0, sizeof(extra_buff));
+		sprintf(extra_buff, "%s   X_%d  ,", dump_log, (x+1));
+		strcpy(dump_log, extra_buff);
 		tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "	 X_%d  ,", (x+1));
 	}
 
@@ -1329,7 +1342,9 @@ static void mp_compare_cdc_show_result(int index, s32 *tmp, char *csv,
 	tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "\n");
 
 	for (y = 0; y < core_mp.ych_len; y++) {
-		sprintf(dump_log, "%sY_%d  ,", dump_log, (y+1));
+		memset(extra_buff, 0, sizeof(extra_buff));
+		sprintf(extra_buff, "%sY_%d  ,", dump_log, (y+1));
+		strcpy(dump_log, extra_buff);
 		tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "	 Y_%d  ,", (y+1));
 
 		for (x = 0; x < core_mp.xch_len; x++) {
@@ -1337,35 +1352,39 @@ static void mp_compare_cdc_show_result(int index, s32 *tmp, char *csv,
 
 			/* In Short teset, we only identify if its value is low than min threshold. */
 			if (tItems[index].catalog == SHORT_TEST) {
+				memset(extra_buff, 0, sizeof(extra_buff));
 				if (tmp[shift] < min_ts[shift]) {
-					sprintf(dump_log,"%s #%7d ", dump_log, tmp[shift]);
+					sprintf(extra_buff,"%s #%7d ", dump_log, tmp[shift]);
 					tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "#%7d,", tmp[shift]);
 					mp_result = MP_DATA_FAIL;
 				} else {
-					sprintf(dump_log,"%s %7d ",dump_log, tmp[shift]);
+					sprintf(extra_buff,"%s %7d ",dump_log, tmp[shift]);
 					tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), " %7d, ", tmp[shift]);
 				}
+				strcpy(dump_log, extra_buff);
 				continue;
 			}
 
+			memset(extra_buff, 0, sizeof(extra_buff));
 			if ((tmp[shift] <= max_ts[shift] && tmp[shift] >= min_ts[shift]) || (type != TYPE_JUGE)) {
 				if ((tmp[shift] == INT_MAX || tmp[shift] == INT_MIN) && (type == TYPE_BENCHMARK)) {
-					sprintf(dump_log,"%s %s" , dump_log, "BYPASS,");
+					sprintf(extra_buff,"%s %s" , dump_log, "BYPASS,");
 					tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "BYPASS,");
 				} else {
-					sprintf(dump_log,"%s %7d " , dump_log, tmp[shift]);
+					sprintf(extra_buff,"%s %7d " , dump_log, tmp[shift]);
 					tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), " %7d, ", tmp[shift]);
 				}
 			} else {
 				if (tmp[shift] > max_ts[shift]) {
-					sprintf(dump_log,"%s *%7d " , dump_log, tmp[shift]);
+					sprintf(extra_buff,"%s *%7d " , dump_log, tmp[shift]);
 					tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "*%7d,", tmp[shift]);
 				} else {
-					sprintf(dump_log,"%s #%7d " , dump_log, tmp[shift]);
+					sprintf(extra_buff,"%s #%7d " , dump_log, tmp[shift]);
 					tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "#%7d,", tmp[shift]);
 				}
 				mp_result = MP_DATA_FAIL;
 			}
+			strcpy(dump_log, extra_buff);
 		}
 		tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "\n");
 		ILI_DBG("%s\n", dump_log);
@@ -1415,7 +1434,9 @@ static void mp_compare_tip_ring_cdc_show_result(int index, s32 *tmp, char *csv,
 			sprintf(dump_log,"%s", desp);
 			tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "\n	   %s ,", desp);
 		}
-		sprintf(dump_log, "%s   X_%d  ,", dump_log, (x+1));
+		memset(extra_buff, 0, sizeof(extra_buff));
+		sprintf(extra_buff, "%s   X_%d  ,", dump_log, (x+1));
+		strcpy(dump_log, extra_buff);
 		tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "	 X_%d  ,", (x+1));
 	}
 
@@ -1423,7 +1444,9 @@ static void mp_compare_tip_ring_cdc_show_result(int index, s32 *tmp, char *csv,
 	memset(dump_log, '\0', sizeof(dump_log));
 	tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "\n");
 	for (y = 0; y < col; y++) {
-		sprintf(dump_log, "%sY_%d  ,", dump_log, (y+1));
+		memset(extra_buff, 0, sizeof(extra_buff));
+		sprintf(extra_buff, "%sY_%d  ,", dump_log, (y+1));
+		strcpy(dump_log, extra_buff);
 		tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "	 Y_%d  ,", (y+1));
 
 		for (x = 0; x < row; x++) {
@@ -1434,29 +1457,31 @@ static void mp_compare_tip_ring_cdc_show_result(int index, s32 *tmp, char *csv,
 			else
 				nDataShift = typeshift + x * col + y;
 
+			memset(extra_buff, 0, sizeof(extra_buff));
 			if (type == TYPE_BENCHMARK) {
 				if (tmp[shift] == INT_MAX || tmp[shift] == INT_MIN) {
-					sprintf(dump_log,"%s %s" , dump_log, "BYPASS,");
+					sprintf(extra_buff,"%s %s" , dump_log, "BYPASS,");
 					tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "BYPASS,");
 				} else {
-					sprintf(dump_log,"%s %7d " , dump_log, tmp[shift]);
+					sprintf(extra_buff,"%s %7d " , dump_log, tmp[shift]);
 					tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), " %7d, ", tmp[shift]);
 				}
 			} else {
 				if ((tmp[nDataShift] <= max_ts[shift] && tmp[nDataShift] >= min_ts[shift]) || (type != TYPE_JUGE)) {
-					sprintf(dump_log,"%s %7d " , dump_log, tmp[shift]);
+					sprintf(extra_buff,"%s %7d " , dump_log, tmp[shift]);
 					tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), " %7d, ", tmp[nDataShift]);
 				} else {
 					if (tmp[nDataShift] > max_ts[shift]) {
-						sprintf(dump_log,"%s *%7d " , dump_log, tmp[shift]);
+						sprintf(extra_buff,"%s *%7d " , dump_log, tmp[shift]);
 						tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "*%7d,", tmp[nDataShift]);
 					} else {
-						sprintf(dump_log,"%s #%7d " , dump_log, tmp[shift]);
+						sprintf(extra_buff,"%s #%7d " , dump_log, tmp[shift]);
 						tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "#%7d,", tmp[nDataShift]);
 					}
 					mp_result = MP_DATA_FAIL;
 				}
 			}
+			strcpy(dump_log, extra_buff);
 		}
 		tmp_len += snprintf(csv + tmp_len, (file_zise - tmp_len), "\n");
 		ILI_DBG("%s\n", dump_log);
@@ -2741,7 +2766,7 @@ static int open_test_sp(int index)
 	}
 
 	parser_ini_nodetype(tItems[index].node_type, (char *) NODE_TYPE_KEY_NAME, core_mp.frame_len);
-dump_node_type_buffer(tItems[index].node_type, (char *) "node type");
+	dump_node_type_buffer(tItems[index].node_type, (char *) "node type");
 
 	parser_get_int_data(tItems[index].desp, "charge_aa", str, sizeof(str));
 	Charge_AA = ili_katoi(str);
@@ -3153,15 +3178,23 @@ static int mp_test_data_sort_average(s32 *oringin_data, int index, s32 *avg_resu
 	ILI_DBG("Up=%d, Down=%d -%s\n", u32up_frame, u32down_frame, tItems[index].desp);
 
 	if (debug_log_en) {
+		memset(extra_buff, 0, sizeof(extra_buff));
 		memset(dump_log, '\0', sizeof(dump_log));
-		sprintf(dump_log, "%s\n[Show Original frist%d and last%d node data]\n", dump_log, len, len);
+		sprintf(extra_buff, "%s\n[Show Original frist%d and last%d node data]\n", dump_log, len, len);
+		strcpy(dump_log, extra_buff);
 		for (i = 0; i < core_mp.frame_len; i++) {
 			for (j = 0 ; j < tItems[index].frame_count ; j++) {
-				if ((i < len) || (i >= (core_mp.frame_len-len)))
-					sprintf(dump_log, "%s%d,", dump_log, u32data_buff[j * core_mp.frame_len + i]);
+				if ((i < len) || (i >= (core_mp.frame_len-len))) {
+					memset(extra_buff, 0, sizeof(extra_buff));
+					sprintf(extra_buff, "%s%d,", dump_log, u32data_buff[j * core_mp.frame_len + i]);
+					strcpy(dump_log, extra_buff);
+				}
 			}
-			if ((i < len) || (i >= (core_mp.frame_len-len)))
-				sprintf(dump_log, "%s\n" ,dump_log);
+			if ((i < len) || (i >= (core_mp.frame_len-len))) {
+				memset(extra_buff, 0, sizeof(extra_buff));
+				sprintf(extra_buff, "%s\n" ,dump_log);
+				strcpy(dump_log, extra_buff);
+			}
 		}
 		ILI_INFO("%s\n",dump_log);
 	}
@@ -3182,14 +3215,22 @@ static int mp_test_data_sort_average(s32 *oringin_data, int index, s32 *avg_resu
 
 	if (debug_log_en) {
 		memset(dump_log, '\0', sizeof(dump_log));
-		sprintf(dump_log, "%s\n[After sorting frist%d and last%d node data]\n", dump_log, len, len);
+		memset(extra_buff, 0, sizeof(extra_buff));
+		sprintf(extra_buff, "%s\n[After sorting frist%d and last%d node data]\n", dump_log, len, len);
+		strcpy(dump_log, extra_buff);
 		for (i = 0; i < core_mp.frame_len; i++) {
 			for (j = u32down_frame; j < tItems[index].frame_count - u32up_frame; j++) {
-				if ((i < len) || (i >= (core_mp.frame_len - len)))
-					sprintf(dump_log, "%s%d,", dump_log, u32data_buff[i + j * core_mp.frame_len]);
+				if ((i < len) || (i >= (core_mp.frame_len - len))) {
+					memset(extra_buff, 0, sizeof(extra_buff));
+					sprintf(extra_buff, "%s%d,", dump_log, u32data_buff[i + j * core_mp.frame_len]);
+					strcpy(dump_log, extra_buff);
+				}
 			}
-			if ((i < len) || (i >= (core_mp.frame_len-len)))
-				sprintf(dump_log, "%s\n", dump_log);
+			if ((i < len) || (i >= (core_mp.frame_len-len))) {
+				memset(extra_buff, 0, sizeof(extra_buff));
+				sprintf(extra_buff, "%s\n", dump_log);
+				strcpy(dump_log, extra_buff);
+			}
 		}
 		ILI_INFO("%s\n",dump_log);
 	}
@@ -3204,13 +3245,21 @@ static int mp_test_data_sort_average(s32 *oringin_data, int index, s32 *avg_resu
 
 	if (debug_log_en) {
 		memset(dump_log, '\0', sizeof(dump_log));
-		sprintf(dump_log, "%s\n[Average result frist%d and last%d node data]\n", dump_log, len, len);
+		memset(extra_buff, 0, sizeof(extra_buff));
+		sprintf(extra_buff, "%s\n[Average result frist%d and last%d node data]\n", dump_log, len, len);
+		strcpy(dump_log, extra_buff);
 		for (i = 0; i < core_mp.frame_len; i++) {
-			if ((i < len) || (i >= (core_mp.frame_len-len)))
-				sprintf(dump_log, "%s%d,", dump_log, avg_result[i]);
+			if ((i < len) || (i >= (core_mp.frame_len-len))) {
+				memset(extra_buff, 0, sizeof(extra_buff));
+				sprintf(extra_buff, "%s%d,", dump_log, avg_result[i]);
+				strcpy(dump_log, extra_buff);
+			}
 		}
-		if ((i < len) || (i >= (core_mp.frame_len-len)))
-			sprintf(dump_log, "%s\n", dump_log);
+		if ((i < len) || (i >= (core_mp.frame_len-len))) {
+			memset(extra_buff, 0, sizeof(extra_buff));
+			sprintf(extra_buff, "%s\n", dump_log);
+			strcpy(dump_log, extra_buff);
+		}
 
 		ILI_INFO("%s\n",dump_log);
 	}
@@ -3591,7 +3640,9 @@ static int mp_show_result()
 		/* Show test result as below */
 		if (tItems[i].catalog == KEY_TEST) {
 			for (x = 0; x < core_mp.key_len; x++) {
-				sprintf(dump_log,"%s KEY_%02d ", dump_log ,x);
+				memset(extra_buff, 0, sizeof(extra_buff));
+				sprintf(extra_buff,"%s KEY_%02d ", dump_log ,x);
+				strcpy(dump_log, extra_buff);
 				csv_len += snprintf(csv + csv_len, (CSV_FILE_SIZE - csv_len), "KEY_%02d,", x);
 			}
 
@@ -3601,7 +3652,9 @@ static int mp_show_result()
 			csv_len += snprintf(csv + csv_len, (CSV_FILE_SIZE - csv_len), "\n");
 
 			for (y = 0; y < core_mp.key_len; y++) {
-				sprintf(dump_log,"%s %3d   ", dump_log, tItems[i].buf[y]);
+				memset(extra_buff, 0, sizeof(extra_buff));
+				sprintf(extra_buff,"%s %3d   ", dump_log, tItems[i].buf[y]);
+				strcpy(dump_log, extra_buff);
 				csv_len += snprintf(csv + csv_len, (CSV_FILE_SIZE - csv_len), " %3d, ", tItems[i].buf[y]);
 			}
 

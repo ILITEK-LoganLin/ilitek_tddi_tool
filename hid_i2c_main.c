@@ -39,6 +39,7 @@ enum TESTCASE
     SWITCH_AP_MODE,
     SWITCH_MP_MODE,
     SWITCH_BL_MODE,
+    HID_INFO,
 };
 
 enum PATHCASE
@@ -47,6 +48,7 @@ enum PATHCASE
     INI_PATH,
     LOG_FILE_PATH,
     INPUT_DATA,
+    HID_NODE,
 };
 
 static int testcase;
@@ -114,6 +116,10 @@ int get_test_case(char *name)
     {
         ret = SWITCH_BL_MODE;
     }
+    else if (strcmp(name, "GetHIDInfo") == 0)
+    {
+        ret = HID_INFO;
+    }
     else
     {
         ret = UNKNOWN;
@@ -149,6 +155,10 @@ int get_fw_path_from_input(char *buf)
             {
                 path_format = INPUT_DATA;
             }
+            else if (strcmp(substr, "hidnode") == 0)
+            {
+                path_format = HID_NODE;
+            }
             else
             {
                 return RET_FAIL_NO;
@@ -170,7 +180,11 @@ int get_fw_path_from_input(char *buf)
             }
             else if (path_format == INPUT_DATA)
             {
-                strcpy((char *) ilits.fw_path, substr);
+                strcpy((char *) ilits.data, substr);
+            }
+            else if (path_format == HID_NODE)
+            {
+                strcpy((char *) ilits.hidtestnode, substr);
             }
         }
         else
@@ -222,7 +236,7 @@ void ili_wr_tp_reg(u8 *cmd, u8 casenum)
             break;
         }
         rw_reg[count] = ili_str2hex(token);
-        ILI_INFO("rw_reg[%d] = 0x%x\n", count, rw_reg[count]);
+        ILI_INFO("rw_reg[%d] = 0x%x\n", (int) count, rw_reg[count]);
         count++;
     }
 
@@ -233,12 +247,12 @@ void ili_wr_tp_reg(u8 *cmd, u8 casenum)
     {
 	    write_data = rw_reg[2];
         ili_ice_mode_write(addr, write_data, len);
-        printf("tp reg write addr=0x%08X, write_data = 0x%08X,, len = %d\n", addr, write_data, len);
+        printf("tp reg write addr=0x%08X, write_data = 0x%08X,, len = %d\n", addr, write_data, (int) len);
     } 
     else
     {
         ili_ice_mode_read(addr, &read_data, len);
-        printf("tp reg read addr=0x%08X, read_data = 0x%08X,, len = %d\n", addr, read_data, len);
+        printf("tp reg read addr=0x%08X, read_data = 0x%08X,, len = %d\n", addr, read_data, (int) len);
     }
 }
 
@@ -246,7 +260,11 @@ bool isTDDI(void)
 {
     bool ret = false;
     u8 key[16] = {0};
+#if CPLUS_COMPILER
     ilitsmp = (ilitek_ts_data_mp*) malloc(sizeof(struct ilitek_ts_data_mp) * sizeof(u8));
+#else
+    ilitsmp = malloc(sizeof(struct ilitek_ts_data_mp) * sizeof(u8));
+#endif
     ili_ic_init();
     ili_ic_get_info();
     ili_ic_get_protocl_ver();
@@ -266,9 +284,9 @@ int main(int argc, char **argv)
     int res, i, retry;
     int ret = 0;
 
-    // ILI_INFO("%s\n", argv[1]);
     ILI_DBG("argc = %d\n", argc);
     init_hid();
+
     if (argv[1] == NULL)
     {
         printf("unknown\n");
@@ -293,16 +311,16 @@ int main(int argc, char **argv)
         }
     }
 
-    if (open_hid_node() < 0)
+    if (open_hidraw_device() < 0)
     {
-        ILI_INFO("open %s node error.\n", HID_RAW_NODE);
+        ILI_INFO("open %s node error.\n", ilits.hidnode);
         return RET_FAIL;
     }
 
     switch (testcase)
     {
     case FW_UPGRADE:
-        ILI_INFO("ILITEK HID TOOL VERSION = %s, testcase = %d\n", HID_DAEMON_VERSION, testcase);
+        ILI_INFO("ILITEK HID TOOL VERSION = %s\n", HID_DAEMON_VERSION);
         ILI_INFO("FW path = %s\n", ilits.fw_path);
         retry = FW_UPGRADE_RETRY;
         do
@@ -373,10 +391,10 @@ int main(int argc, char **argv)
         ili_ic_get_protocl_ver();
         break;
     case WRITE_TP_REG:
-        ili_wr_tp_reg(ilits.fw_path, WRITE);
+        ili_wr_tp_reg(ilits.data, WRITE);
         break;
     case READ_TP_REG:
-        ili_wr_tp_reg(ilits.fw_path, READ);
+        ili_wr_tp_reg(ilits.data, READ);
         break;
     case SWITCH_AP_MODE:
         ili_hid_switch_tp_mode(P5_X_FW_AP_MODE);
@@ -386,6 +404,23 @@ int main(int argc, char **argv)
         break;
     case SWITCH_BL_MODE:
         switch_bootloader();
+        break;
+    case HID_INFO:
+        struct hidraw_devinfo info;
+        memset(&info, 0x0, sizeof(info));
+         if (open_hid_node() < 0)
+        {
+            ILI_INFO("open %s node error.\n", ilits.hidnode);
+            return RET_FAIL;
+        }
+        res = ioctl(ilits.fd_hidraw, HIDIOCGRAWINFO, &info);
+        if (res < 0) {
+            perror("HIDIOCGRAWINFO");
+        } else {
+            printf("Raw Info:\n");
+            printf("\tvendor: 0x%04hx\n", info.vendor);
+            printf("\tproduct: 0x%04hx\n", info.product);
+        }
         break;
     default:
         printf("UNKNOWN CASE!\n");

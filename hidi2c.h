@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -20,6 +20,7 @@
 #define __HIDI2C_H__
 
 #include <errno.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <stdbool.h>
@@ -33,15 +34,19 @@
 #include <linux/hidraw.h>
 #include <sys/ioctl.h>
 
-#define HID_DAEMON_VERSION "2.0.4.0"
+#define HID_DAEMON_VERSION "2.0.5.0"
+
+#define CPLUS_COMPILER ENABLE
 
 #define HID_RAW_NODE "/dev/hidraw0"
 #define RET_FAIL_NO -1
 #define DEF_FW_FILP_PATH "/sdcard/ILITEK_FW"
 #define DEF_INI_FILP_PATH "/sdcard/mp.ini"
 #define DEF_MP_FILP_PATH "/sdcard/"
-#define DEF_MP_LCM_ON_PATH		"/sdcard/ilitek_mp_lcm_on_log/"
-#define DEF_MP_LCM_OFF_PATH		"/sdcard/ilitek_mp_lcm_off_log/"
+#define DEF_MP_LCM_ON_PATH "/sdcard/ilitek_mp_lcm_on_log/"
+#define DEF_MP_LCM_OFF_PATH "/sdcard/ilitek_mp_lcm_off_log/"
+#define HEX_CHK_KEY1 "flashbl"
+#define HEX_CHK_KEY2 "IlitekBL"
 
 #define RW_SYNC 0
 #define R_ONLY 1
@@ -57,9 +62,11 @@
 #define READ_OFFSET 3
 #define MP_CDC_READ_OFFSET 1
 
-#define P5_X_FW_AP_MODE					    0x00
-#define P5_X_FW_TEST_MODE				    0x01
-#define P5_X_FW_DEBUG_MODE				    0x02
+#define ILITEK_VENDOR_ID 0x222A
+
+#define P5_X_FW_AP_MODE 0x00
+#define P5_X_FW_TEST_MODE 0x01
+#define P5_X_FW_DEBUG_MODE 0x02
 
 #define P5_X_READ_DATA_CTRL 0xF6
 #define P5_X_GET_TP_INFORMATION 0x20
@@ -76,7 +83,6 @@
 #define POSITION_PEN_TYPE_OFF 0x03
 
 #define FW_BLOCK_INFO_NUM 17
-
 
 #define RET_PASS 0
 #define RET_FAIL 1
@@ -110,8 +116,8 @@
 #define RETRY_UPGRADE_T 200
 #define FW_UPGRADE_RETRY 3
 
-#define AP_INT_TIMEOUT			600 /*600ms*/
-#define MP_INT_TIMEOUT			5000 /*5000ms*/
+#define AP_INT_TIMEOUT 600  /*600ms*/
+#define MP_INT_TIMEOUT 5000 /*5000ms*/
 
 /* Flash */
 #define FLASH_BASED_ADDR 0x41000
@@ -126,8 +132,8 @@
 #define FLASH1_DUAL_MODE (FLASH_BASED_ADDR + 0x3)
 #define FLASH2_FALSH_ID FLASH2_ADDR
 
-#define TDDI_PC_COUNTER_ADDR				0x44008
-#define TDDI_PC_LATCH_ADDR				0x51010
+#define TDDI_PC_COUNTER_ADDR 0x44008
+#define TDDI_PC_LATCH_ADDR 0x51010
 
 typedef unsigned char u8;
 typedef unsigned short int u16;
@@ -139,22 +145,22 @@ typedef signed int s32;
 
 extern bool debug_log_en;
 extern bool log_en;
-#define ILI_INFO(fmt, arg...)                                \
+#define ILI_INFO(fmt, arg...)                                    \
     do                                                           \
     {                                                            \
-        if (log_en)                                            \
+        if (log_en)                                              \
             printf("(%s, %d): " fmt, __func__, __LINE__, ##arg); \
     } while (0)
 #define ILI_DBG(fmt, arg...)                                     \
     do                                                           \
     {                                                            \
-        if (debug_log_en)                                            \
+        if (debug_log_en)                                        \
             printf("(%s, %d): " fmt, __func__, __LINE__, ##arg); \
     } while (0)
-#define ILI_ERR(fmt, arg...)                                 \
+#define ILI_ERR(fmt, arg...)                                     \
     do                                                           \
     {                                                            \
-        if (log_en)                                            \
+        if (log_en)                                              \
             printf("(%s, %d): " fmt, __func__, __LINE__, ##arg); \
     } while (0)
 
@@ -167,7 +173,6 @@ enum LCM
     LCM_OFF = 0,
     LCM_ON,
 };
-
 
 enum TP_FW_BLOCK_NUM
 {
@@ -213,6 +218,7 @@ enum TP_ERR_CODE
     EFW_ERASE,
     EFW_PROGRAM,
     EFW_INTERFACE,
+    EFW_HEXSIGH,
 };
 
 enum TP_IC_TYPE
@@ -248,7 +254,9 @@ enum TP_IC_TYPE
 enum TP_FW_BLOCK_TAG
 {
     BLOCK_TAG_AF = 0xAF,
-    BLOCK_TAG_B0 = 0xB0
+    BLOCK_TAG_B0 = 0xB0,
+    BLOCK_TAG_SIGN = 0xEE,
+    BLOCK_TAG_BLKEY = 0xDE,
 };
 enum WR_TP_REG
 {
@@ -282,42 +290,43 @@ struct firmware
 struct ilitek_ic_info
 {
     u8 type;
-	u8 ver;
-	u16 id;
-	u32 pid;
-	u32 pid_addr;
-	u32 wdt_addr;
-	u32 pc_counter_addr;
-	u32 pc_latch_addr;
-	u32 reset_addr;
-	u32 otp_addr;
-	u32 ana_addr;
-	u32 otp_id;
-	u32 ana_id;
-	u32 fw_ver;
+    u8 ver;
+    u16 id;
+    u32 pid;
+    u32 pid_addr;
+    u32 wdt_addr;
+    u32 pc_counter_addr;
+    u32 pc_latch_addr;
+    u32 reset_addr;
+    u32 otp_addr;
+    u32 ana_addr;
+    u32 otp_id;
+    u32 ana_id;
+    u32 fw_ver;
     u8 fw_ver_buf[4];
-	u32 fw_mp_ver;
-	u32 driver_ver[4];
-	u32 core_ver;
-	u32 max_count;
-	u32 reset_key;
-	u16 wtd_key;
-	int no_bk_shift;
-	u32 fw_pc;
-	u32 fw_latch;
+    u32 fw_mp_ver;
+    u32 driver_ver[4];
+    u32 core_ver;
+    u32 max_count;
+    u32 reset_key;
+    u16 wtd_key;
+    int no_bk_shift;
+    u32 fw_pc;
+    u32 fw_latch;
     u32 bl_ver;
     u32 potocal_ver;
 };
 
-struct pen_info_block {
-	u8 nPxRaw;
-	u8 nPyRaw;
-	u8 nPxVa;
-	u8 nPyVa;
-	u8 nPenX_MP;
-	u8 nReserved01;
-	u8 nReserved02;
-	u8 nReserved03;
+struct pen_info_block
+{
+    u8 nPxRaw;
+    u8 nPyRaw;
+    u8 nPxVa;
+    u8 nPyVa;
+    u8 nPenX_MP;
+    u8 nReserved01;
+    u8 nReserved02;
+    u8 nReserved03;
 };
 
 struct ilitek_ts_data
@@ -335,8 +344,13 @@ struct ilitek_ts_data
     u8 rbuf[8192];
     u8 save_path[128];
     u8 ini_path[128];
+    u8 data[32];
+    char hidnode[64];
+    char hidtestnode[64];
 
-	bool isSupportFlash;
+    bool isSupportFlash;
+    bool flash_bl_key_en;
+    bool flash_bl_en;
 
     u16 flash_mid;
     u16 flash_devid;
@@ -347,15 +361,13 @@ struct ilitek_ts_data
     int flash_sector;
     int fw_update_stat;
     int supportFlashIndex;
-    const char* flashName;
+    const char *flashName;
 
     char *md_fw_filp_path;
 
-     /* current firmware mode in driver */
+    /* current firmware mode in driver */
     u16 actual_tp_mode;
     int ice_stat;
-
-
 
     int (*wrapper)(u8 *wdata, u32 wlen, u8 *rdata, u32 rlen);
 };
@@ -377,7 +389,6 @@ static inline void ipio_free(void **mem)
     }
 }
 
-
 extern struct ilitek_ts_data ilits;
 extern struct hidraw_report_descriptor rpt_desc;
 extern struct hidraw_devinfo info;
@@ -386,6 +397,7 @@ extern struct ilitek_ic_info chip;
 extern struct ilitek_ts_data_mp *ilitsmp;
 
 extern int open_hid_node(void);
+extern int open_hidraw_device(void);
 extern void close_hid_node(void);
 extern void init_hid(void);
 extern void check_hidraw_info(void);

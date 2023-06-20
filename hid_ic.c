@@ -19,6 +19,7 @@
 #include "hidi2c.h"
 #include "MP/Android.h"
 #include "MP/Common.h"
+#include "MP/ilitek_mp.h"
 
 struct ilitek_ts_data_mp *ilitsmp;
 struct ilitek_ic_info chip;
@@ -68,8 +69,8 @@ int ili_ic_get_core_ver(void)
     if (ilits.wrapper(ilits.wbuf, 1, ilits.rbuf, 5) < 0)
         ILI_ERR("Write core ver (0x%x) failed\n", ilits.wbuf[READ_SHIFT - 1]);
     ilits.chip.core_ver = (ilits.rbuf[READ_SHIFT] << 24) | (ilits.rbuf[READ_SHIFT + 1] << 16) | (ilits.rbuf[READ_SHIFT + 2] << 8) | ilits.rbuf[READ_SHIFT + 3];
-    ILI_INFO("Core version = %d.%d.%d.%d\n", ilits.chip.core_ver >> 24, (ilits.chip.core_ver >> 16) & 0xFF
-        , (ilits.chip.core_ver >> 8) & 0xFF, ilits.chip.core_ver & 0xFF);
+    ILI_INFO("Core version = %d.%d.%d.%d\n", (int) (ilits.chip.core_ver >> 24), (int) ((ilits.chip.core_ver >> 16) & 0xFF)
+        , (int) ((ilits.chip.core_ver >> 8) & 0xFF), (int) (ilits.chip.core_ver & 0xFF));
 
     if (ilits.rbuf[READ_SHIFT - 1] != P5_X_GET_CORE_VERSION_NEW)
     {
@@ -110,8 +111,10 @@ int ili_ic_get_fw_ver(bool showinfo)
 
 out:
     if (showinfo) {
-        ILI_INFO("Firmware version = %d.%d.%d.%d\n", ilits.rbuf[READ_SHIFT], ilits.rbuf[READ_SHIFT + 1], ilits.rbuf[READ_SHIFT + 2], ilits.rbuf[READ_SHIFT + 3]);
-        ILI_INFO("Firmware MP version = %d.%d.%d.%d\n", ilits.rbuf[READ_SHIFT + 4], ilits.rbuf[READ_SHIFT + 5], ilits.rbuf[READ_SHIFT + 6], ilits.rbuf[READ_SHIFT + 7]);
+        ILI_INFO("Firmware version = %d.%d.%d.%d\n", (int) ilits.rbuf[READ_SHIFT], (int) ilits.rbuf[READ_SHIFT + 1],
+				(int) ilits.rbuf[READ_SHIFT + 2], (int) ilits.rbuf[READ_SHIFT + 3]);
+        ILI_INFO("Firmware MP version = %d.%d.%d.%d\n", (int) ilits.rbuf[READ_SHIFT + 4], (int) ilits.rbuf[READ_SHIFT + 5],
+				(int) ilits.rbuf[READ_SHIFT + 6], (int) ilits.rbuf[READ_SHIFT + 7]);
     }
     ilits.chip.fw_ver_buf[3] = ilits.rbuf[READ_SHIFT];
     ilits.chip.fw_ver_buf[2] = ilits.rbuf[READ_SHIFT + 1];
@@ -154,7 +157,8 @@ int ili_ic_get_protocl_ver(void)
 out:
     ilits.chip.potocal_ver = ilits.rbuf[READ_SHIFT] << 16 | ilits.rbuf[READ_SHIFT + 1] << 8 | ilits.rbuf[READ_SHIFT + 2];
 
-    ILI_INFO("Protocol version = %d.%d.%d\n", ilits.chip.potocal_ver >> 16, (ilits.chip.potocal_ver >> 8) & 0xFF, ilits.chip.potocal_ver & 0xFF);
+    ILI_INFO("Protocol version = %d.%d.%d\n", (int) (ilits.chip.potocal_ver >> 16),
+		(int) ((ilits.chip.potocal_ver >> 8) & 0xFF), (int) (ilits.chip.potocal_ver & 0xFF));
     return ret;
 }
 
@@ -162,7 +166,11 @@ int ili_ic_init(void)
 {
     ILI_DBG("ili_ic_init()\n");
 
+#if CPLUS_COMPILER
 	ilitsmp = (ilitek_ts_data_mp *) malloc(sizeof(struct ilitek_ts_data_mp) * sizeof(u8));
+#else
+	ilitsmp = malloc(sizeof(struct ilitek_ts_data_mp) * sizeof(u8));
+#endif
 	if (ERR_ALLOC_MEM(ilitsmp)) {
 		ILI_ERR("Failed to allocate core_config mem\n");
 		return -ENOMEM;
@@ -390,10 +398,10 @@ int ili_ic_get_all_info(void)
 			ILI_ERR("Failed to get protocal version\n");
 	        ret = -EINVAL;
 		}
-		ILI_INFO("Firmware version(0x%8X) = %d.%d.%d.%d\n",ilits.chip.fw_ver , ilits.rbuf[ReadShift + 16], ilits.rbuf[ReadShift + 17], ilits.rbuf[ReadShift + 18], ilits.rbuf[ReadShift + 19]);
-		ILI_INFO("Protocol version = %d.%d.%d\n", ilits.chip.potocal_ver >> 16, (ilits.chip.potocal_ver >> 8) & 0xFF, ilits.chip.potocal_ver & 0xFF);
+		ILI_INFO("Firmware version(0x%8X) = %d.%d.%d.%d\n",ilits.chip.fw_ver , (int) ilits.rbuf[ReadShift + 16], (int) ilits.rbuf[ReadShift + 17], (int) ilits.rbuf[ReadShift + 18], (int) ilits.rbuf[ReadShift + 19]);
+		ILI_INFO("Protocol version = %d.%d.%d\n", (int) (ilits.chip.potocal_ver >> 16), (int) ((ilits.chip.potocal_ver >> 8) & 0xFF), (int) (ilits.chip.potocal_ver & 0xFF));
 		ILI_INFO("Firmware MP version(0x%8X) = %d.%d.%d.%d\n",ilits.chip.fw_mp_ver , ilits.rbuf[ReadShift + 20], ilits.rbuf[ReadShift + 21], ilits.rbuf[ReadShift + 22], ilits.rbuf[ReadShift + 23]);
-        ILI_INFO("Core version = %d.%d.%d.%d\n", ilits.chip.core_ver >> 24, (ilits.chip.core_ver >> 16) & 0xFF, (ilits.chip.core_ver >> 8) & 0xFF, ilits.chip.core_ver & 0xFF);
+        ILI_INFO("Core version = %d.%d.%d.%d\n", (int) (ilits.chip.core_ver >> 24), (int) ((ilits.chip.core_ver >> 16) & 0xFF), (int) ((ilits.chip.core_ver >> 8) & 0xFF), (int) (ilits.chip.core_ver & 0xFF));
 		ILI_INFO("TP Info: min_x = %d, min_y = %d, max_x = %d, max_y = %d\n", tp_info.min_x, tp_info.min_y, tp_info.max_x, tp_info.max_y);
 		ILI_INFO("TP Info: xch = %d, ych = %d, stx = %d, srx = %d\n", tp_info.xch_num, tp_info.ych_num, tp_info.stx, tp_info.srx);
 		ILI_INFO("Pen Len Info : PxRaw = %d, PyRaw = %d, PxVa = %d, PyVa = %d, nPenX_MP = %d\n", ilits.pen_info_block.nPxRaw, ilits.pen_info_block.nPyRaw, ilits.pen_info_block.nPxVa, ilits.pen_info_block.nPyVa, ilits.pen_info_block.nPenX_MP);
