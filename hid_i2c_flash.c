@@ -1241,11 +1241,9 @@ out:
 
 int do_fw_upgrade(void)
 {
-    // u8 cmdbuf[64] = {0};
-    // u32 readData, write_len;
     int ret = UPDATE_PASS;
 
-    ili_ic_disable_report();
+    ili_ic_hid_report_ctrl(DISABLE);
 
     if (get_info() < 0)
     {
@@ -1287,10 +1285,9 @@ out:
 
 int do_fw_upgrade_test(void)
 {
-    // u8 cmdbuf[64] = {0};
     int ret = UPDATE_PASS;
 
-    ili_ic_disable_report();
+    ili_ic_hid_report_ctrl(DISABLE);
     ili_ic_set_engineer_mode();
 
     if (get_info() < 0)

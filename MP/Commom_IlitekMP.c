@@ -126,8 +126,9 @@ int ili_mp_test(u8 *ini_path, u8 *save_path)
     ILI_INFO("ini path = %s, save path = %s\n", ini_path, save_path);
     if (createSaveDirPath(save_path) < 0) {
         return 0;
-    } 
+    }
 
+    ili_ic_hid_report_ctrl(DISABLE);
 
     ret = initDevice();
 
@@ -166,6 +167,8 @@ int ili_mp_test(u8 *ini_path, u8 *save_path)
     } else {
         printf("Error! MP FAIL, error code = %d\n", ret);
     }
+
+    ili_ic_hid_report_ctrl(ENABLE);
 
     releaseDevice();
     return ret;

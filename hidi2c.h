@@ -34,7 +34,7 @@
 #include <linux/hidraw.h>
 #include <sys/ioctl.h>
 
-#define HID_DAEMON_VERSION "2.0.5.0"
+#define HID_DAEMON_VERSION "2.0.6.0"
 
 #define CPLUS_COMPILER ENABLE
 
@@ -105,6 +105,11 @@
 #define INFO_HEX_ST_ADDR 0x4F
 #define INFO_MP_HEX_ADDR 0x1F
 
+#define DDI_MASTER_WRITE 0xD1
+#define DDI_MASTER_READ 0xD2
+#define DDI_SLAVE_WRITE 0xD3
+#define DDI_SLAVE_READ 0xD4
+
 #define CMD_DELIN "="
 
 #define CMD_DELAY_T 1
@@ -112,6 +117,7 @@
 #define MODE_CHANGE_DELAY_T 100
 #define RST_DELAY_T 270
 #define WDT_DELAY_T 3000
+#define DDI_REG_DELAY_T 32
 #define WAIT_BL_FLASH_DONE_T 20
 #define RETRY_UPGRADE_T 200
 #define FW_UPGRADE_RETRY 3
@@ -264,6 +270,13 @@ enum WR_TP_REG
     WRITE,
 };
 
+enum CASCADE_MODE {
+	MASTER = 0,
+	SLAVE,
+	BOTH,
+    UNKNOWN_MODE = 99,
+};
+
 struct report_info_block
 {
     u8 nReportByPixel : 1;
@@ -344,7 +357,7 @@ struct ilitek_ts_data
     u8 rbuf[8192];
     u8 save_path[128];
     u8 ini_path[128];
-    u8 data[32];
+    u8 data[64];
     char hidnode[64];
     char hidtestnode[64];
 
@@ -415,7 +428,6 @@ extern int ili_ic_get_core_ver(void);
 extern int ili_ic_get_fw_ver(bool showinfo);
 extern int ili_ic_get_protocl_ver(void);
 extern int ili_ic_get_info(void);
-extern void ili_ic_disable_report(void);
 extern void ili_ic_set_engineer_mode(void);
 extern int ilitek_tddi_flash_fw_crc_check(void);
 extern int get_info(void);
@@ -432,4 +444,7 @@ extern int check_fw_crc(char *file_path);
 extern int ili_mp_lcm_ctrl(u8 lcm_on);
 extern int ili_mp_test_main(bool lcm_on);
 extern int ili_ic_get_all_info(void);
+extern void ili_ic_hid_report_ctrl(bool flag);
+extern int ili_ddi_reg_read(u8 ddi_page, u8 ddi_reg, u8 MSmode);
+extern int ili_ddi_reg_write(u8 ddi_page, u8 ddi_reg, u8 data, u8 MSmode);
 #endif

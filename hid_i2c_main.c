@@ -36,6 +36,8 @@ enum TESTCASE
     VER_INFO,
     WRITE_TP_REG,
     READ_TP_REG,
+    WRITE_DDI_REG,
+    READ_DDI_REG,
     SWITCH_AP_MODE,
     SWITCH_MP_MODE,
     SWITCH_BL_MODE,
@@ -103,6 +105,14 @@ int get_test_case(char *name)
     else if (strcmp(name, "r_tp_reg") == 0)
     {
         ret = READ_TP_REG;
+    }
+    else if (strcmp(name, "w_ddi_reg") == 0)
+    {
+        ret = WRITE_DDI_REG;
+    }
+    else if (strcmp(name, "r_ddi_reg") == 0)
+    {
+        ret = READ_DDI_REG;
     }
     else if (strcmp(name, "switchap") == 0)
     {
@@ -256,6 +266,66 @@ void ili_wr_tp_reg(u8 *cmd, u8 casenum)
     }
 }
 
+void ili_wr_ddi_reg(u8 *cmd, u8 casenum)
+{
+    u8 rw_reg[6] = {0};
+    u8 count = 0;
+    u8 page, ddi_reg, data, msmode = UNKNOWN_MODE;
+    char *token = NULL, *cur = NULL;
+    ILI_INFO("inpur[%s]\n", cmd);
+    token = cur = (char *) cmd;
+    while ((token = strsep(&cur, ",")) != NULL)
+    {
+        if (count >= (sizeof(rw_reg) / sizeof(u8)))
+        {
+            ILI_ERR("command length is larger than function need\n");
+            break;
+        }
+        if (count == 0)
+        {
+            if (strcmp(token, "master") == 0 || strcmp(token, "Master") == 0 ||
+                strcmp(token, "MASTER") == 0)
+            {
+                msmode = MASTER;
+            }
+            else if (strcmp(token, "slave") == 0 || strcmp(token, "Slave") == 0 ||
+                strcmp(token, "SLAVE") == 0)
+            {
+                msmode = SLAVE;
+            }
+            else
+            {
+                msmode = UNKNOWN_MODE;
+            }
+        }
+        else
+        {
+            rw_reg[count] = (u8) (ili_str2hex(token) & 0xFF);
+            ILI_DBG("rw_reg[%d] = 0x%x\n", (int) count, rw_reg[count]);
+        }
+
+        count++;
+    }
+
+    if (msmode == UNKNOWN_MODE)
+    {
+        ILI_INFO("DDI register is unknown mode\n");
+        return;
+    }
+
+    page = rw_reg[1];
+    ddi_reg = rw_reg[2];
+    if (casenum == WRITE)
+    {
+	    data = rw_reg[3];
+        ili_ddi_reg_write(page, ddi_reg, data, msmode);
+    }
+    else
+    {
+        ili_ddi_reg_read(page, ddi_reg, msmode);
+    }
+}
+
 bool isTDDI(void)
 {
     bool ret = false;
@@ -283,6 +353,7 @@ int main(int argc, char **argv)
 {
     int res, i, retry;
     int ret = 0;
+    struct hidraw_devinfo info;
 
     ILI_DBG("argc = %d\n", argc);
     init_hid();
@@ -396,6 +467,12 @@ int main(int argc, char **argv)
     case READ_TP_REG:
         ili_wr_tp_reg(ilits.data, READ);
         break;
+    case WRITE_DDI_REG:
+        ili_wr_ddi_reg(ilits.data, WRITE);
+        break;
+    case READ_DDI_REG:
+        ili_wr_ddi_reg(ilits.data, READ);
+        break;
     case SWITCH_AP_MODE:
         ili_hid_switch_tp_mode(P5_X_FW_AP_MODE);
         break;
@@ -406,7 +483,6 @@ int main(int argc, char **argv)
         switch_bootloader();
         break;
     case HID_INFO:
-        struct hidraw_devinfo info;
         memset(&info, 0x0, sizeof(info));
          if (open_hid_node() < 0)
         {
