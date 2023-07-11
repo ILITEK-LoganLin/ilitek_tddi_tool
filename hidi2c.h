@@ -34,7 +34,7 @@
 #include <linux/hidraw.h>
 #include <sys/ioctl.h>
 
-#define HID_DAEMON_VERSION "2.0.7.0"
+#define HID_DAEMON_VERSION "2.0.8.0"
 
 #define CPLUS_COMPILER ENABLE
 
@@ -364,6 +364,7 @@ struct ilitek_ts_data
     bool isSupportFlash;
     bool flash_bl_key_en;
     bool flash_bl_en;
+    bool inputflag;
 
     u16 flash_mid;
     u16 flash_devid;

@@ -46,6 +46,12 @@ void ili_ic_hid_report_ctrl(bool flag)
 	ILI_DBG("%s report\n", (flag == ENABLE) ? "Enable" : "Disable");
     if (ilits.wrapper(ilits.wbuf, 3, NULL, 0) < 0)
         ILI_ERR("Write disable report cmd failed\n");
+
+	/* clean data buffer of HID node */
+	if (open_hidraw_device() < 0)
+    {
+        ILI_INFO("open %s node error.\n", ilits.hidnode);
+    }
 }
 
 void ili_ic_set_engineer_mode(void)

@@ -82,6 +82,11 @@ int open_hidraw_device(void)
 	struct dirent *ptr;
 	int hidraw_id;
 
+    if (ilits.fd_hidraw > 0)
+    {
+        close(ilits.fd_hidraw);
+    }
+
 	dir = opendir("/dev");
 	if (!dir) {
 		ILI_ERR("can't open \"/dev\" directory\n");
@@ -151,6 +156,7 @@ void init_hid(void)
 
     ilits.flash_bl_key_en = DISABLE;
     ilits.flash_bl_en = DISABLE;
+    ilits.inputflag = ENABLE;
 }
 
 void check_hidraw_info(void)
@@ -451,6 +457,7 @@ int ili_ddi_reg_write(u8 ddi_page, u8 ddi_reg, u8 data, u8 MSmode)
 run:
     if (retry <= 0)
     {
+        ILI_ERR("write ddi register fail\n");
         goto out;
     }
     retry--;
@@ -470,6 +477,7 @@ run:
     if (ret < 0)
     {
         ILI_ERR("Write %s DDI reg fail.\n", ((MSmode == MASTER) ? "master" : "slave"));
+        msleep(DDI_REG_DELAY_T);
         goto run;
     }
     else
@@ -495,6 +503,7 @@ int ili_ddi_reg_read(u8 ddi_page, u8 ddi_reg, u8 paraCnt, u8 MSmode)
 run:
     if (retry <= 0)
     {
+        ILI_ERR("read ddi register fail\n");
         goto out;
     }
     retry--;
@@ -512,22 +521,29 @@ run:
     ili_dump_data(txbuf, 8, 10, 256, "write data:");
     ret = ioctl(ilits.fd_hidraw, HIDIOCSFEATURE(10), txbuf);
     if (ret < 0) {
+        msleep(DDI_REG_DELAY_T);
         goto run;
     }
     ret = (int)TimeoutRead(ilits.fd_hidraw, rxbuf, read_len, AP_INT_TIMEOUT);
     if (ret == 0)
     {
-        ILI_ERR("timeout to ice mode read, ret = %d\n", ret);
+        ILI_ERR("timeout to read, ret = %d\n", ret);
         ret = RET_FAIL_NO;
     }
     else if (ret < 0)
     {
         ILI_ERR("Read %s DDI reg fail.\n", ((MSmode == MASTER) ? "master" : "slave"));
+        msleep(DDI_REG_DELAY_T);
         goto run;
     }
     else
     {
         ili_dump_data(rxbuf, 8, read_len, 256, "read data:");
+        if (rxbuf[3] != DDI_MASTER_READ) {
+            ILI_DBG("Read error head 0x%02X\n", rxbuf[3]);
+            msleep(DDI_REG_DELAY_T);
+            goto run;
+        }
         tmpout = (char *) malloc( 256 * sizeof(u8));
         for (i = 0; i < paraCnt; i++)
         {

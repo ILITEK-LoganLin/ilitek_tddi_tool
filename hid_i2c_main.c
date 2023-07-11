@@ -20,6 +20,7 @@
 #include "MP/ilitek_mp.h"
 
 u8 debug_ret = RET_PASS;
+static int testcase;
 
 enum TESTCASE
 {
@@ -42,6 +43,8 @@ enum TESTCASE
     SWITCH_MP_MODE,
     SWITCH_BL_MODE,
     HID_INFO,
+    DIS_REPORT,
+    EN_REPORT,
 };
 
 enum PATHCASE
@@ -51,9 +54,8 @@ enum PATHCASE
     LOG_FILE_PATH,
     INPUT_DATA,
     HID_NODE,
+    FLAG,
 };
-
-static int testcase;
 
 void removeCR(char *str) {
     size_t length = strlen(str);
@@ -137,6 +139,14 @@ int get_test_case(char *name)
     {
         ret = HID_INFO;
     }
+    else if (strcmp(name, "disablereport") == 0 || strcmp(name, "dis_rpt") == 0)
+    {
+        ret = DIS_REPORT;
+    }
+    else if (strcmp(name, "enablereport") == 0 || strcmp(name, "en_rpt") == 0)
+    {
+        ret = EN_REPORT;
+    }
     else
     {
         ret = UNKNOWN;
@@ -176,6 +186,10 @@ int get_fw_path_from_input(char *buf)
             {
                 path_format = HID_NODE;
             }
+            else if (strcmp(substr, "flag") == 0)
+            {
+                path_format = FLAG;
+            }
             else
             {
                 return RET_FAIL_NO;
@@ -202,6 +216,13 @@ int get_fw_path_from_input(char *buf)
             else if (path_format == HID_NODE)
             {
                 strcpy((char *) ilits.hidtestnode, substr);
+            }
+            else if (path_format == FLAG)
+            {
+                if (strcmp(substr, "disable") == 0 || strcmp(substr, "0") == 0)
+                    ilits.inputflag = DISABLE;
+                else
+                    ilits.inputflag = ENABLE;
             }
         }
         else
@@ -265,8 +286,9 @@ void ili_wr_tp_reg(u8 *cmd, u8 casenum)
 
     addr = rw_reg[0];
 	len = rw_reg[1];
+    if (ilits.inputflag)
+        ili_ic_hid_report_ctrl(DISABLE);
 
-    ili_ic_hid_report_ctrl(DISABLE);
     if (casenum == WRITE)
     {
 	    write_data = rw_reg[2];
@@ -278,7 +300,8 @@ void ili_wr_tp_reg(u8 *cmd, u8 casenum)
         ili_ice_mode_read(addr, &read_data, len);
         printf("tp reg read addr=0x%08X, read_data = 0x%08X,, len = %d\n", addr, read_data, (int) len);
     }
-    ili_ic_hid_report_ctrl(ENABLE);
+    if (ilits.inputflag)
+        ili_ic_hid_report_ctrl(ENABLE);
 }
 
 void ili_wr_ddi_reg(u8 *cmd, u8 casenum)
@@ -322,12 +345,14 @@ void ili_wr_ddi_reg(u8 *cmd, u8 casenum)
         count++;
     }
 
+    if (ilits.inputflag)
+        ili_ic_hid_report_ctrl(DISABLE);
+
     if (msmode == UNKNOWN_MODE)
     {
         ILI_INFO("DDI register is unknown mode\n");
         return;
     }
-    ili_ic_hid_report_ctrl(DISABLE);
     page = rw_reg[1];
     ddi_reg = rw_reg[2];
     if (casenum == WRITE)
@@ -340,7 +365,9 @@ void ili_wr_ddi_reg(u8 *cmd, u8 casenum)
         paraCnt = rw_reg[3];
         ili_ddi_reg_read(page, ddi_reg, paraCnt, msmode);
     }
-    ili_ic_hid_report_ctrl(ENABLE);
+
+    if (ilits.inputflag)
+        ili_ic_hid_report_ctrl(ENABLE);
 }
 
 bool isTDDI(void)
@@ -382,6 +409,7 @@ int main(int argc, char **argv)
     }
     else
     {
+        removeCR(argv[1]);
         testcase = get_test_case(argv[1]);
 
         i = 2;
@@ -448,7 +476,13 @@ int main(int argc, char **argv)
         }
         break;
     case CHECK_CRC:
+        if (ilits.inputflag)
+            ili_ic_hid_report_ctrl(DISABLE);
+
         printf("fw-crc-tag: [%s]\n", (check_fw_crc((char *) &ilits.fw_path[0]) == UPDATE_PASS) ? "CRC_PASS" : "CRC_FAIL");
+
+        if (ilits.inputflag)
+            ili_ic_hid_report_ctrl(ENABLE);
         break;
     case MP_LCM_ON:
         ILI_INFO("ILITEK HID TOOL VERSION = %s\n", HID_DAEMON_VERSION);
@@ -460,24 +494,42 @@ int main(int argc, char **argv)
         ili_ic_whole_reset(ON);
         break;
     case FWVER:
+        if (ilits.inputflag)
+            ili_ic_hid_report_ctrl(DISABLE);
         ili_ic_get_fw_ver(false);
         printf("fw-version-tag: [%02X.%02X.%02X.%02X]\n", ilits.chip.fw_ver_buf[3], ilits.chip.fw_ver_buf[2]
             , ilits.chip.fw_ver_buf[1], ilits.chip.fw_ver_buf[0]);
+        if (ilits.inputflag)
+            ili_ic_hid_report_ctrl(ENABLE);
         break;
     case CK_BL:
+        if (ilits.inputflag)
+            ili_ic_hid_report_ctrl(DISABLE);
         printf("fw-mode-tag: [%s]\n", (is_in_bootloader_mode()) ? "BL" : "NON_BL");
+        if (ilits.inputflag)
+            ili_ic_hid_report_ctrl(ENABLE);
         break;
     case ISTDDI:
+        if (ilits.inputflag)
+            ili_ic_hid_report_ctrl(DISABLE);
+
         printf("fw-tddi-tag: [%s]\n", (isTDDI()) ? "TDDI" : "NON_TDDI");
+
+        if (ilits.inputflag)
+            ili_ic_hid_report_ctrl(ENABLE);
         break;
     case DAEMON_VER:
         printf("ILITEK HID TOOL VERSION = %s\n", HID_DAEMON_VERSION);
         break;
     case VER_INFO:
+        if (ilits.inputflag)
+            ili_ic_hid_report_ctrl(DISABLE);
         ili_ic_get_info();
         ili_ic_get_fw_ver(true);
         ili_ic_get_core_ver();
         ili_ic_get_protocl_ver();
+        if (ilits.inputflag)
+            ili_ic_hid_report_ctrl(ENABLE);
         break;
     case WRITE_TP_REG:
         ili_wr_tp_reg(ilits.data, WRITE);
@@ -515,6 +567,14 @@ int main(int argc, char **argv)
             printf("\tvendor: 0x%04hx\n", info.vendor);
             printf("\tproduct: 0x%04hx\n", info.product);
         }
+        break;
+    case DIS_REPORT:
+        printf("Disable report\n");
+        ili_ic_hid_report_ctrl(DISABLE);
+        break;
+    case EN_REPORT:
+        printf("Enable report\n");
+        ili_ic_hid_report_ctrl(ENABLE);
         break;
     default:
         printf("UNKNOWN CASE!\n");
