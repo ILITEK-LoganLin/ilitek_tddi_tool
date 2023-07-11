@@ -55,6 +55,13 @@ enum PATHCASE
 
 static int testcase;
 
+void removeCR(char *str) {
+    size_t length = strlen(str);
+    if (length > 0 && str[length - 1] == 13) {
+        str[length - 1] = '\0';
+    }
+}
+
 int get_test_case(char *name)
 {
     int ret;
@@ -212,6 +219,12 @@ void get_input_para(char *para)
 {
 
     // ILI_INFO("check %s\n", para);
+    // return change line 
+    if (para[0] == 0xD)
+    {
+        return;
+    }
+
     if (strcmp(para, "log") == 0)
     {
         debug_log_en = ENABLE;
@@ -225,7 +238,7 @@ void get_input_para(char *para)
     {
         if (get_fw_path_from_input(para) < 0)
         {
-            printf("unknown : %s\n", para);
+            printf("unknown : [%s]\n", para);
         }
     }
 }
@@ -253,6 +266,7 @@ void ili_wr_tp_reg(u8 *cmd, u8 casenum)
     addr = rw_reg[0];
 	len = rw_reg[1];
 
+    ili_ic_hid_report_ctrl(DISABLE);
     if (casenum == WRITE)
     {
 	    write_data = rw_reg[2];
@@ -264,15 +278,16 @@ void ili_wr_tp_reg(u8 *cmd, u8 casenum)
         ili_ice_mode_read(addr, &read_data, len);
         printf("tp reg read addr=0x%08X, read_data = 0x%08X,, len = %d\n", addr, read_data, (int) len);
     }
+    ili_ic_hid_report_ctrl(ENABLE);
 }
 
 void ili_wr_ddi_reg(u8 *cmd, u8 casenum)
 {
     u8 rw_reg[6] = {0};
     u8 count = 0;
-    u8 page, ddi_reg, data, msmode = UNKNOWN_MODE;
+    u8 page, ddi_reg, data, paraCnt,msmode = UNKNOWN_MODE;
     char *token = NULL, *cur = NULL;
-    ILI_INFO("inpur[%s]\n", cmd);
+    ILI_DBG("input[%s]\n", cmd);
     token = cur = (char *) cmd;
     while ((token = strsep(&cur, ",")) != NULL)
     {
@@ -312,7 +327,7 @@ void ili_wr_ddi_reg(u8 *cmd, u8 casenum)
         ILI_INFO("DDI register is unknown mode\n");
         return;
     }
-
+    ili_ic_hid_report_ctrl(DISABLE);
     page = rw_reg[1];
     ddi_reg = rw_reg[2];
     if (casenum == WRITE)
@@ -322,8 +337,10 @@ void ili_wr_ddi_reg(u8 *cmd, u8 casenum)
     }
     else
     {
-        ili_ddi_reg_read(page, ddi_reg, msmode);
+        paraCnt = rw_reg[3];
+        ili_ddi_reg_read(page, ddi_reg, paraCnt, msmode);
     }
+    ili_ic_hid_report_ctrl(ENABLE);
 }
 
 bool isTDDI(void)
@@ -372,6 +389,7 @@ int main(int argc, char **argv)
         {
             if (argv[i] != NULL)
             {
+                removeCR(argv[i]);
                 get_input_para(argv[i]);
             }
             else

@@ -446,50 +446,75 @@ int ili_ice_mode_read(u32 addr, u32 *data, int len)
 int ili_ddi_reg_write(u8 ddi_page, u8 ddi_reg, u8 data, u8 MSmode)
 {
 
-    int ret = 0;
-    u8 txbuf[8] = {0};
+    int ret = 0, retry = RETRY_COUNT;
+    u8 txbuf[10] = {0};
+run:
+    if (retry <= 0)
+    {
+        goto out;
+    }
+    retry--;
 
     txbuf[0] = 0x03;
     txbuf[1] = 0xA3;
-    txbuf[2] = 0x04;
+    txbuf[2] = 0x06;
     txbuf[3] = 0x00;
-    txbuf[4] = (MSmode == MASTER) ? DDI_MASTER_WRITE : DDI_SLAVE_WRITE;
+    txbuf[4] = DDI_MASTER_WRITE;
     txbuf[5] = ddi_page;
     txbuf[6] = ddi_reg;
     txbuf[7] = data;
-    ili_dump_data(txbuf, 8, 8, 256, "write data:");
-    ret = ioctl(ilits.fd_hidraw, HIDIOCSFEATURE(8), txbuf);
+    txbuf[8] = DDI_MASTER_WRITE;
+    txbuf[9] = (MSmode == SLAVE) ? SLAVE : MASTER;
+    ili_dump_data(txbuf, 8, 10, 256, "write data:");
+    ret = ioctl(ilits.fd_hidraw, HIDIOCSFEATURE(10), txbuf);
     if (ret < 0)
     {
         ILI_ERR("Write %s DDI reg fail.\n", ((MSmode == MASTER) ? "master" : "slave"));
+        goto run;
     }
     else
     {
-        ILI_INFO("Write %s ddi page = 0x%X, reg = 0x%X, data = 0x%X\n",
+        ILI_INFO("Write %s ddi page = 0x%02X, reg = 0x%02X, data = 0x%02X\n",
             ((MSmode == MASTER) ? "master" : "slave"), ddi_page, ddi_reg, data);
     }
+out:
     msleep(DDI_REG_DELAY_T);
 
     return ret;
 }
 
-int ili_ddi_reg_read(u8 ddi_page, u8 ddi_reg, u8 MSmode)
+int ili_ddi_reg_read(u8 ddi_page, u8 ddi_reg, u8 paraCnt, u8 MSmode)
 {
 
-    int ret = 0;
-    u8 txbuf[8] = {0};
-    u8 rxbuf[8] = {0};
+    int ret = 0, tmpout_len = 0, i, retry = RETRY_COUNT;
+    u8 txbuf[16] = {0};
+    u8 rxbuf[64] = {0};
+    u8 read_len = paraCnt + 4;
+    char *tmpout = NULL;
+
+run:
+    if (retry <= 0)
+    {
+        goto out;
+    }
+    retry--;
 
     txbuf[0] = 0x03;
     txbuf[1] = 0xA3;
-    txbuf[2] = 0x04;
-    txbuf[3] = 0x02;
-    txbuf[4] = (MSmode == MASTER) ? DDI_MASTER_READ : DDI_SLAVE_READ;
+    txbuf[2] = 0x06;
+    txbuf[3] = read_len;
+    txbuf[4] = DDI_MASTER_READ;
     txbuf[5] = ddi_page;
     txbuf[6] = ddi_reg;
-    ili_dump_data(txbuf, 8, 7, 256, "write data:");
-    ioctl(ilits.fd_hidraw, HIDIOCSFEATURE(7), txbuf);
-    ret = (int)TimeoutRead(ilits.fd_hidraw, rxbuf, 5, AP_INT_TIMEOUT);
+    txbuf[7] = DDI_MASTER_READ;
+    txbuf[8] = (MSmode == SLAVE) ? SLAVE : MASTER;
+    txbuf[9] = paraCnt;
+    ili_dump_data(txbuf, 8, 10, 256, "write data:");
+    ret = ioctl(ilits.fd_hidraw, HIDIOCSFEATURE(10), txbuf);
+    if (ret < 0) {
+        goto run;
+    }
+    ret = (int)TimeoutRead(ilits.fd_hidraw, rxbuf, read_len, AP_INT_TIMEOUT);
     if (ret == 0)
     {
         ILI_ERR("timeout to ice mode read, ret = %d\n", ret);
@@ -497,13 +522,24 @@ int ili_ddi_reg_read(u8 ddi_page, u8 ddi_reg, u8 MSmode)
     }
     else if (ret < 0)
     {
-        ILI_ERR("read %s DDI reg fail.\n", ((MSmode == MASTER) ? "master" : "slave"));
+        ILI_ERR("Read %s DDI reg fail.\n", ((MSmode == MASTER) ? "master" : "slave"));
+        goto run;
     }
     else
     {
-        ILI_INFO("read %s ddi page = 0x%X, reg = 0x%X, data = 0x%X\n",
-            ((MSmode == MASTER) ? "master" : "slave"), ddi_page, ddi_reg, rxbuf[READ_SHIFT]);
+        ili_dump_data(rxbuf, 8, read_len, 256, "read data:");
+        tmpout = (char *) malloc( 256 * sizeof(u8));
+        for (i = 0; i < paraCnt; i++)
+        {
+            tmpout_len += snprintf(tmpout + tmpout_len, 6, "0x%02X,", rxbuf[4 + i]);
+
+        }
+        tmpout_len += snprintf(tmpout + tmpout_len, 1, "");
+        ILI_INFO("Read %s ddi page = 0x%02X, reg = 0x%02X, data = %s\n",
+            ((MSmode == MASTER) ? "master" : "slave"), ddi_page, ddi_reg, tmpout);
+        ipio_free((void **)&tmpout);
     }
+out:
     return ret;
 }
 

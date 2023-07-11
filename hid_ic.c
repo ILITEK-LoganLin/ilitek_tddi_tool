@@ -43,7 +43,7 @@ void ili_ic_hid_report_ctrl(bool flag)
     ilits.wbuf[0] = 0x01;
     ilits.wbuf[1] = 0x24;
     ilits.wbuf[2] = (flag == ENABLE) ? 0x01 : 0x00;
-	ILI_INFO("%s report\n", (flag == ENABLE) ? "Enable" : "Disable");
+	ILI_DBG("%s report\n", (flag == ENABLE) ? "Enable" : "Disable");
     if (ilits.wrapper(ilits.wbuf, 3, NULL, 0) < 0)
         ILI_ERR("Write disable report cmd failed\n");
 }

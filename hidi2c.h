@@ -34,7 +34,7 @@
 #include <linux/hidraw.h>
 #include <sys/ioctl.h>
 
-#define HID_DAEMON_VERSION "2.0.6.0"
+#define HID_DAEMON_VERSION "2.0.7.0"
 
 #define CPLUS_COMPILER ENABLE
 
@@ -61,6 +61,8 @@
 #define READ_SHIFT 4
 #define READ_OFFSET 3
 #define MP_CDC_READ_OFFSET 1
+
+#define RETRY_COUNT 3
 
 #define ILITEK_VENDOR_ID 0x222A
 
@@ -107,8 +109,6 @@
 
 #define DDI_MASTER_WRITE 0xD1
 #define DDI_MASTER_READ 0xD2
-#define DDI_SLAVE_WRITE 0xD3
-#define DDI_SLAVE_READ 0xD4
 
 #define CMD_DELIN "="
 
@@ -445,6 +445,6 @@ extern int ili_mp_lcm_ctrl(u8 lcm_on);
 extern int ili_mp_test_main(bool lcm_on);
 extern int ili_ic_get_all_info(void);
 extern void ili_ic_hid_report_ctrl(bool flag);
-extern int ili_ddi_reg_read(u8 ddi_page, u8 ddi_reg, u8 MSmode);
+extern int ili_ddi_reg_read(u8 ddi_page, u8 ddi_reg, u8 paraCnt, u8 MSmode);
 extern int ili_ddi_reg_write(u8 ddi_page, u8 ddi_reg, u8 data, u8 MSmode);
 #endif
